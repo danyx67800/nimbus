@@ -9,7 +9,10 @@ interface Peer {
   stream: MediaStream;
   pendingCandidates: RTCIceCandidateInit[];
   hasRemoteDescription: boolean;
+  connectTimer: number;
 }
+
+const CONNECT_TIMEOUT_MS = 20_000;
 
 interface CallSession {
   callId: string;
@@ -310,7 +313,7 @@ function ensurePeer(session: CallSession, peerId: string): Peer {
   const pc = new RTCPeerConnection({ iceServers: session.iceServers, bundlePolicy: 'max-bundle' });
   const stream = new MediaStream();
   for (const track of session.localStream.getTracks()) pc.addTrack(track, session.localStream);
-  const peer: Peer = { pc, stream, pendingCandidates: [], hasRemoteDescription: false };
+  const peer: Peer = { pc, stream, pendingCandidates: [], hasRemoteDescription: false, connectTimer: 0 };
   pc.ontrack = (event) => {
     for (const track of event.streams[0]?.getTracks() ?? [event.track]) {
       if (!stream.getTracks().some((existingTrack) => existingTrack.id === track.id)) stream.addTrack(track);
@@ -327,10 +330,17 @@ function ensurePeer(session: CallSession, peerId: string): Peer {
       });
     }
   };
+  peer.connectTimer = window.setTimeout(() => {
+    if (active !== session || session.peers.get(peerId) !== peer) return;
+    if (pc.connectionState === 'connected') return;
+    toast(t('calls.connectionFailed'), 'error');
+  }, CONNECT_TIMEOUT_MS);
   pc.onconnectionstatechange = () => {
     if (pc.connectionState === 'connected') {
+      window.clearTimeout(peer.connectTimer);
       session.status = 'active';
     } else if (pc.connectionState === 'failed') {
+      window.clearTimeout(peer.connectTimer);
       toast(t('calls.failed'), 'error');
     }
     renderGrid(session);
@@ -395,6 +405,7 @@ function endCall(session: CallSession, notify: boolean): void {
   active = null;
   window.clearInterval(session.timer);
   for (const peer of session.peers.values()) {
+    window.clearTimeout(peer.connectTimer);
     try {
       peer.pc.close();
     } catch {

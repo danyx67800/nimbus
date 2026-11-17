@@ -1,8 +1,20 @@
-const CACHE = 'nimbus-shell-v1';
+const CACHE = 'nimbus-shell-v2';
 const SHELL = ['/', '/assets/app.js', '/assets/styles.css', '/offline.html', '/icon.svg', '/manifest.webmanifest'];
 
+function offlineResponse() {
+  return new Response('<!doctype html><html lang="it"><meta charset="utf-8"><title>Nimbus offline</title><body><h1>Nimbus non raggiungibile</h1><p>Controlla la connessione e riprova.</p></body></html>', {
+    status: 503,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  });
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches
+      .open(CACHE)
+      .then((cache) => Promise.allSettled(SHELL.map((path) => cache.add(path))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (event) => {
@@ -28,23 +40,23 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE).then((cache) => cache.put('/', copy)).catch(() => undefined);
           return response;
         })
-        .catch(() => caches.match('/offline.html')),
+        .catch(async () => (await caches.match('/offline.html')) ?? offlineResponse()),
     );
     return;
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => undefined);
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
+    caches.match(request).then(async (cached) => {
+      try {
+        const response = await fetch(request);
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => undefined);
+        }
+        return response;
+      } catch {
+        return cached ?? new Response(null, { status: 504, statusText: 'Offline' });
+      }
     }),
   );
 });

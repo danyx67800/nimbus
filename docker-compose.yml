@@ -14,7 +14,7 @@ services:
 
   app:
     build: .
-    image: nimbus:1.0.1
+    image: nimbus:1.0.2
     restart: unless-stopped
     user: "1000:1000"
     read_only: true
