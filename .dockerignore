@@ -1,0 +1,15 @@
+node_modules
+dist
+data
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+coverage
+.screenshots
+docs
+umbrel
+README.md
+SECURITY.md
