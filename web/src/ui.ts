@@ -91,6 +91,9 @@ const ICONS: Record<string, string> = {
   moon: '<path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  spark:
+    '<path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8Z"/><path d="m18.5 16.5.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z"/>',
   send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
   paperclip: '<path d="m21 11.5-8.8 8.8a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8l8.3-8.3"/>',
   check: '<path d="m5 12 5 5L20 6"/>',

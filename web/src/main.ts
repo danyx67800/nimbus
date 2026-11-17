@@ -17,10 +17,16 @@ const appRoot = document.getElementById('app') as HTMLElement;
 let currentCleanup: (() => void) | undefined;
 let managersReady = false;
 let session: Awaited<ReturnType<typeof getMe>> | null = null;
+let lastMountedPath = '';
 
 function mount(node: HTMLElement, cleanup?: () => void): void {
   currentCleanup?.();
   currentCleanup = undefined;
+  const path = `${location.pathname}${location.search}`;
+  if (path !== lastMountedPath) {
+    node.classList.add('route-enter');
+    lastMountedPath = path;
+  }
   appRoot.replaceChildren(node);
   currentCleanup = cleanup;
   window.scrollTo({ top: 0 });
@@ -40,7 +46,10 @@ function applyUserPreferences(): void {
       : (state.config?.defaultLocale ?? 'it');
   setLanguage(lang);
   rememberLanguage(lang);
-  const theme = state.user.theme === 'light' || state.user.theme === 'dark' ? state.user.theme : storedTheme();
+  const theme =
+    state.user.theme === 'light' || state.user.theme === 'dark' || state.user.theme === 'system'
+      ? state.user.theme
+      : storedTheme();
   applyTheme(theme);
 }
 

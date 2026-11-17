@@ -15,6 +15,7 @@ import type { View } from './types.js';
 
 const NAV = [
   { key: 'files', path: '/files', icon: 'files', label: 'nav.files' },
+  { key: 'favorites', path: '/favorites', icon: 'star', label: 'nav.favorites' },
   { key: 'chat', path: '/chat', icon: 'chat', label: 'nav.chat' },
   { key: 'calls', path: '/calls', icon: 'phone', label: 'nav.calls' },
   { key: 'shared', path: '/shared', icon: 'share', label: 'nav.shared' },
@@ -31,7 +32,7 @@ function sectionFor(path: string): string {
   if (path.startsWith('/calls')) return 'calls';
   if (path.startsWith('/shared')) return 'shared';
   if (path.startsWith('/trash')) return 'trash';
-  if (path.startsWith('/favorites')) return 'files';
+  if (path.startsWith('/favorites')) return 'favorites';
   if (path.startsWith('/settings')) return 'settings';
   if (path.startsWith('/admin')) return 'admin';
   if (path.startsWith('/help')) return 'help';
@@ -44,6 +45,8 @@ function titleFor(section: string): string {
       return t('nav.chat');
     case 'calls':
       return t('nav.calls');
+    case 'favorites':
+      return t('nav.favorites');
     case 'shared':
       return t('nav.shared');
     case 'trash':
@@ -107,7 +110,6 @@ export function renderShell(path: string): View {
     );
   };
 
-  nav.append(h('div', { class: 'nav-label', text: 'Spazio personale' }));
   for (const entry of NAV) {
     if (entry.key === 'shared' || entry.key === 'trash') {
       if (entry.key === 'shared') nav.append(h('div', { class: 'nav-label', text: 'Organizza' }));
@@ -120,58 +122,72 @@ export function renderShell(path: string): View {
     appendLink({ key: 'admin', path: '/admin', icon: 'admin', label: 'nav.admin' });
   }
 
-  const progress = h('span', { style: { width: `${storage.percent}%` } });
-  const storageText = h('span', { text: `${formatBytes(storage.used)} / ${formatBytes(storage.quota)}` });
-  const storageRow = h('div', { class: 'row' }, storageText, h('span', { text: `${Math.round(storage.percent)}%` }));
-  const meter = h(
+  const spacePercent = h('span', { text: `${Math.round(storage.percent)}%` });
+  const spaceUsed = h('b', { text: formatBytes(storage.used) });
+  const spaceQuota = h('small', { text: t('home.ofQuota', { quota: formatBytes(storage.quota) }) });
+  const spaceBar = h('i', { style: { width: `${Math.min(100, storage.percent)}%` } });
+  const spaceTrack = h(
     'div',
-    { class: 'storage-meter' },
-    storageRow,
-    h(
-      'div',
-      {
-        class: 'meter',
-        role: 'progressbar',
-        'aria-valuenow': String(Math.round(storage.percent)),
-        'aria-valuemin': '0',
-        'aria-valuemax': '100',
-      },
-      progress,
-    ),
+    {
+      class: 'track',
+      role: 'progressbar',
+      'aria-valuenow': String(Math.round(storage.percent)),
+      'aria-valuemin': '0',
+      'aria-valuemax': '100',
+    },
+    spaceBar,
+  );
+  const spaceCard = h(
+    'div',
+    { class: 'space-card' },
+    h('div', { class: 'lab' }, h('span', { text: t('settings.storage') }), spacePercent),
+    h('div', { class: 'amount' }, spaceUsed, spaceQuota),
+    spaceTrack,
   );
 
-  const avatar = avatarEl(
-    { id: user.id, displayName: user.displayName, status: currentPresenceStatus() },
-    { size: 'sm' },
-  );
+  const avatar = avatarEl({ id: user.id, displayName: user.displayName, status: currentPresenceStatus() });
+  const openUserMenu = (anchor: HTMLElement): void => {
+    showMenu(anchor, [
+      { label: t('nav.settings'), iconName: 'settings', onClick: () => navigate('/settings') },
+      { label: t('nav.help'), iconName: 'lock', onClick: () => navigate('/help') },
+      {
+        label: t('common.logout'),
+        iconName: 'logout',
+        danger: true,
+        onClick: async () => {
+          try {
+            await api('/api/auth/logout', { method: 'POST' });
+          } catch {
+            // ignore, cookie may already be invalid
+          }
+          location.assign('/');
+        },
+      },
+    ]);
+  };
   const userMenuButton = h(
     'button',
     {
       type: 'button',
       class: 'icon-btn',
       'aria-label': 'Menu utente',
-      onclick: (event: MouseEvent) => {
-        const anchor = event.currentTarget as HTMLElement;
-        showMenu(anchor, [
-          { label: t('nav.settings'), iconName: 'settings', onClick: () => navigate('/settings') },
-          { label: t('nav.help'), iconName: 'lock', onClick: () => navigate('/help') },
-          {
-            label: t('common.logout'),
-            iconName: 'logout',
-            danger: true,
-            onClick: async () => {
-              try {
-                await api('/api/auth/logout', { method: 'POST' });
-              } catch {
-                // ignore, cookie may already be invalid
-              }
-              location.assign('/');
-            },
-          },
-        ]);
-      },
+      onclick: (event: MouseEvent) => openUserMenu(event.currentTarget as HTMLElement),
     },
     icon('more', 18),
+  );
+  const topbarAvatar = h(
+    'button',
+    {
+      type: 'button',
+      class: 'topbar-avatar',
+      'aria-label': 'Menu utente',
+      title: user.displayName,
+      onclick: (event: MouseEvent) => openUserMenu(event.currentTarget as HTMLElement),
+    },
+    avatarEl(
+      { id: user.id, displayName: user.displayName, status: currentPresenceStatus() },
+      { size: 'lg', showStatus: false },
+    ),
   );
 
   const sidebar = h(
@@ -185,13 +201,18 @@ export function renderShell(path: string): View {
         'aria-hidden': 'true',
         text: state.config?.appName.slice(0, 1).toUpperCase() ?? 'N',
       }),
-      h('div', {}, h('strong', { text: state.config?.appName ?? 'Nimbus' }), h('span', { text: 'Self-hosted' })),
+      h(
+        'div',
+        {},
+        h('strong', { text: state.config?.appName ?? 'Nimbus' }),
+        h('span', { text: t('home.personalSpace') }),
+      ),
     ),
     nav,
     h(
       'div',
       { class: 'sidebar-footer' },
-      meter,
+      spaceCard,
       h(
         'div',
         { class: 'user-card' },
@@ -208,7 +229,9 @@ export function renderShell(path: string): View {
   );
 
   const view = renderView(path);
-  const topbarTitle = h('div', { class: 'topbar-title', text: titleFor(section) });
+  const topbarTitle = ['files', 'favorites', 'shared', 'trash'].includes(section)
+    ? null
+    : h('div', { class: 'topbar-title', text: titleFor(section) });
   const quickShareButton = h(
     'button',
     {
@@ -266,6 +289,7 @@ export function renderShell(path: string): View {
       },
       icon('shield', 18),
     ),
+    topbarAvatar,
   );
   const main = h('div', { class: 'shell-main' }, topbar, secureBanner, content);
   const shell = h('div', { class: 'app-shell' }, sidebar, main);
@@ -273,6 +297,9 @@ export function renderShell(path: string): View {
   const closeSidebar = (): void => shell.classList.remove('sidebar-open');
   sidebar.addEventListener('click', (event) => {
     if ((event.target as Element).closest('a')) closeSidebar();
+  });
+  shell.addEventListener('click', (event) => {
+    if (event.target === shell) closeSidebar();
   });
 
   const updateBadge = (): void => {
@@ -290,9 +317,11 @@ export function renderShell(path: string): View {
   const unsubscribeRooms = on(events.roomsUpdated, updateBadge);
   const unsubscribeUser = on('nimbus:user-refreshed', () => {
     const current = storageUsed();
-    progress.style.width = `${current.percent}%`;
-    storageText.textContent = `${formatBytes(current.used)} / ${formatBytes(current.quota)}`;
-    meter.setAttribute('aria-valuenow', String(Math.round(current.percent)));
+    spacePercent.textContent = `${Math.round(current.percent)}%`;
+    spaceUsed.textContent = formatBytes(current.used);
+    spaceQuota.textContent = t('home.ofQuota', { quota: formatBytes(current.quota) });
+    spaceBar.style.width = `${Math.min(100, current.percent)}%`;
+    spaceTrack.setAttribute('aria-valuenow', String(Math.round(current.percent)));
   });
   const onKey = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') closeSidebar();

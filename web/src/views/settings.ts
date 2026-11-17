@@ -6,7 +6,18 @@ import { setLanguage, t } from '../i18n.js';
 import { navigate } from '../router.js';
 import { state } from '../store.js';
 import { applyTheme, rememberLanguage } from '../theme.js';
-import { copyToClipboard, formatBytes, formatDate, h, icon, openModal, promptDialog, toast } from '../ui.js';
+import {
+  avatarEl,
+  copyToClipboard,
+  currentPresenceStatus,
+  formatBytes,
+  formatDate,
+  h,
+  icon,
+  openModal,
+  promptDialog,
+  toast,
+} from '../ui.js';
 import type { View } from './types.js';
 
 interface SessionInfo {
@@ -56,11 +67,11 @@ function toggle(checked: boolean, onChange: (next: boolean) => Promise<void> | v
   return button;
 }
 
-function card(title: string, body: HTMLElement, className = ''): HTMLElement {
+function card(title: string, body: HTMLElement, className = '', iconName = 'settings'): HTMLElement {
   return h(
     'section',
     { class: `card ${className}` },
-    h('div', { class: 'card-header' }, h('h2', { text: title })),
+    h('div', { class: 'card-header' }, h('span', { class: 'card-icon' }, icon(iconName, 17)), h('h2', { text: title })),
     h('div', { class: 'card-body' }, body),
   );
 }
@@ -85,11 +96,36 @@ export function renderSettings(): View {
       'div',
       { class: 'grow' },
       h('h1', { text: t('settings.title') }),
-      h('p', { class: 'sub', text: `@${user.username}` }),
+      h('p', { class: 'sub', text: t('settings.subtitle') }),
+    ),
+  );
+  const storagePercent = Math.min(100, user.quotaBytes ? (user.usedBytes / user.quotaBytes) * 100 : 0);
+  const hero = h(
+    'section',
+    { class: 'settings-hero' },
+    h('div', { class: 'settings-hero-art', 'aria-hidden': 'true' }),
+    avatarEl({ id: user.id, displayName: user.displayName, status: currentPresenceStatus() }, { size: 'xl' }),
+    h(
+      'div',
+      { class: 'grow' },
+      h('h2', { text: user.displayName }),
+      h('p', {
+        class: 'sub',
+        text: `@${user.username} · ${user.role === 'admin' ? t('admin.admin') : t('admin.user')}`,
+      }),
+      h(
+        'div',
+        { class: 'settings-hero-meter' },
+        h('div', { class: 'progress' }, h('span', { style: { width: `${storagePercent}%` } })),
+        h('span', {
+          class: 'hint',
+          text: `${formatBytes(user.usedBytes)} / ${formatBytes(user.quotaBytes)} · ${t('settings.encryptedHint')}`,
+        }),
+      ),
     ),
     window.isSecureContext
-      ? h('span', { class: 'badge success' }, icon('shield', 13), 'Contesto sicuro')
-      : h('a', { class: 'btn small', href: '/help' }, icon('lock', 14), 'HTTPS'),
+      ? h('span', { class: 'badge success' }, icon('shield', 13), t('settings.secureContext'))
+      : h('a', { class: 'badge warn', href: '/help' }, icon('lock', 13), 'HTTPS'),
   );
 
   // Profile
@@ -276,7 +312,7 @@ export function renderSettings(): View {
   const pushBody = h(
     'div',
     {},
-    settingRow(t('settings.notifications'), t('settings.notificationHint'), pushButton),
+    settingRow(t('settings.pushTitle'), t('settings.notificationHint'), pushButton),
     pushStatus,
   );
 
@@ -530,7 +566,9 @@ export function renderSettings(): View {
           ),
         );
       }
-      if (window.PublicKeyCredential) {
+      if (!window.isSecureContext) {
+        passkeyBody.append(h('p', { class: 'hint', text: t('settings.passkeysInsecure') }));
+      } else if (window.PublicKeyCredential) {
         passkeyBody.append(
           h(
             'button',
@@ -655,28 +693,6 @@ export function renderSettings(): View {
     passkeyBody,
   );
 
-  const storage = h(
-    'div',
-    { class: 'stack' },
-    h(
-      'div',
-      { class: 'row' },
-      h('strong', { class: 'grow', text: t('settings.storage') }),
-      h('span', { class: 'muted', text: `${formatBytes(user.usedBytes)} / ${formatBytes(user.quotaBytes)}` }),
-    ),
-    h(
-      'div',
-      { class: 'progress' },
-      h('span', {
-        style: { width: `${Math.min(100, user.quotaBytes ? (user.usedBytes / user.quotaBytes) * 100 : 0)}%` },
-      }),
-    ),
-    h('p', {
-      class: 'hint',
-      text: 'I file sono cifrati a riposo con AES-256-GCM e chiavi per file avvolte dalla chiave master dell’istanza.',
-    }),
-  );
-
   const httpsBody = h(
     'div',
     { class: 'stack' },
@@ -712,17 +728,17 @@ export function renderSettings(): View {
 
   page.append(
     head,
+    hero,
     h(
       'div',
       { class: 'settings-grid' },
-      card(t('settings.profile'), profileBody),
-      card('Preferenze', preferencesBody),
-      card(t('settings.notifications'), pushBody),
-      card(t('settings.storage'), storage),
-      card(t('settings.security'), securityBody, 'span-2'),
-      card(t('settings.sessions'), sessionsBody, 'span-2'),
-      card(t('settings.httpsTitle'), httpsBody),
-      card(t('settings.about'), aboutBody),
+      card(t('settings.profile'), profileBody, '', 'users'),
+      card('Preferenze', preferencesBody, '', 'settings'),
+      card(t('settings.notifications'), pushBody, '', 'bell'),
+      card(t('settings.security'), securityBody, 'span-2', 'shield'),
+      card(t('settings.sessions'), sessionsBody, 'span-2', 'key'),
+      card(t('settings.httpsTitle'), httpsBody, '', 'lock'),
+      card(t('settings.about'), aboutBody, '', 'cloud'),
     ),
   );
 

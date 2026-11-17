@@ -10,6 +10,7 @@ export function renderCalls(): View {
   const grid = h('div', { class: 'calls-grid' });
   const notice = h('div', { class: 'notice' });
   const page = h('div', { class: 'stack' });
+  const contactCount = h('span', { class: 'badge' });
 
   function renderNotice(): void {
     if (!window.isSecureContext) {
@@ -43,66 +44,6 @@ export function renderCalls(): View {
       );
     } else {
       notice.remove();
-    }
-  }
-
-  function renderCards(): void {
-    grid.replaceChildren();
-    const contacts = state.contacts;
-    if (contacts.length === 0) {
-      grid.append(
-        emptyState(
-          'phone',
-          t('calls.noContacts'),
-          'Gli altri utenti dell’istanza appariranno qui.',
-          h('button', { type: 'button', class: 'btn primary', onclick: () => navigate('/chat') }, t('chat.newChat')),
-        ),
-      );
-      return;
-    }
-    for (const contact of contacts) {
-      const online = contact.status !== 'offline' && !contact.blocked;
-      const card = h(
-        'div',
-        { class: 'call-contact' },
-        avatarEl(contact, { size: 'lg' }),
-        h(
-          'div',
-          { class: 'grow' },
-          h('strong', { text: contact.displayName }),
-          h('div', { class: 'sub', text: `@${contact.username} · ${t('common.' + contact.status)}` }),
-          contact.blocked ? h('span', { class: 'badge danger', text: 'Bloccato' }) : null,
-        ),
-        h(
-          'div',
-          { class: 'call-buttons' },
-          h(
-            'button',
-            {
-              type: 'button',
-              class: 'icon-btn',
-              'aria-label': t('calls.audio'),
-              title: t('calls.audio'),
-              disabled: !online,
-              onclick: () => startCall(contact.id, 'audio'),
-            },
-            icon('phone', 18),
-          ),
-          h(
-            'button',
-            {
-              type: 'button',
-              class: 'icon-btn',
-              'aria-label': t('calls.video'),
-              title: t('calls.video'),
-              disabled: !online,
-              onclick: () => startCall(contact.id, 'video'),
-            },
-            icon('video', 18),
-          ),
-        ),
-      );
-      grid.append(card);
     }
   }
 
@@ -172,6 +113,109 @@ export function renderCalls(): View {
     });
   }
 
+  const hero = h(
+    'section',
+    { class: 'calls-hero' },
+    h('div', { class: 'calls-hero-icon' }, icon('phone', 23)),
+    h(
+      'div',
+      { class: 'grow' },
+      h('strong', { text: t('calls.newGroup') }),
+      h('p', { text: t('calls.groupHint') }),
+      h(
+        'div',
+        { class: 'calls-chips' },
+        h('span', { class: 'badge' }, icon('lock', 12), 'DTLS-SRTP'),
+        h('span', { class: 'badge' }, icon('users', 12), 'Mesh P2P'),
+        h('span', { class: 'badge' }, 'Max 4'),
+      ),
+    ),
+    h(
+      'button',
+      { type: 'button', class: 'btn primary', onclick: () => openGroupDialog() },
+      icon('users', 16),
+      t('calls.start'),
+    ),
+  );
+
+  const sectionHead = h(
+    'div',
+    { class: 'sec-head calls-section' },
+    h('h2', { text: t('calls.contacts') }),
+    h('div', { class: 'grow' }),
+    contactCount,
+  );
+
+  function renderCards(): void {
+    grid.replaceChildren();
+    const contacts = state.contacts;
+    const available = contacts.filter((contact) => contact.status !== 'offline' && !contact.blocked).length;
+    contactCount.textContent = t('calls.onlineCount', { n: available });
+    if (contacts.length === 0) {
+      grid.append(
+        emptyState(
+          'phone',
+          t('calls.noContacts'),
+          'Gli altri utenti dell’istanza appariranno qui.',
+          h('button', { type: 'button', class: 'btn primary', onclick: () => navigate('/chat') }, t('chat.newChat')),
+        ),
+      );
+      return;
+    }
+    contacts.forEach((contact, index) => {
+      const online = contact.status !== 'offline' && !contact.blocked;
+      const card = h(
+        'div',
+        { class: 'call-card', style: { '--i': String(index) } },
+        h(
+          'div',
+          { class: 'call-card-head' },
+          h('div', { class: 'call-avatar-wrap' }, avatarEl(contact, { size: 'xl', showStatus: false })),
+          h(
+            'span',
+            { class: `call-presence ${contact.status}` },
+            h('i', { 'aria-hidden': 'true' }),
+            t(`common.${contact.status}`),
+          ),
+        ),
+        h('strong', { class: 'call-name', text: contact.displayName }),
+        h('span', { class: 'call-handle', text: `@${contact.username}` }),
+        contact.blocked
+          ? h('span', { class: 'badge danger call-blocked', text: t('calls.blocked') })
+          : !online
+            ? h('span', { class: 'call-unavailable', text: t('calls.offlineHint') })
+            : null,
+        h(
+          'div',
+          { class: 'call-actions' },
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'btn small',
+              disabled: !online,
+              onclick: () => startCall(contact.id, 'audio'),
+            },
+            icon('phone', 15),
+            t('calls.audio'),
+          ),
+          h(
+            'button',
+            {
+              type: 'button',
+              class: 'btn small primary',
+              disabled: !online,
+              onclick: () => startCall(contact.id, 'video'),
+            },
+            icon('video', 15),
+            t('calls.video'),
+          ),
+        ),
+      );
+      grid.append(card);
+    });
+  }
+
   const head = h(
     'div',
     { class: 'page-head' },
@@ -186,12 +230,6 @@ export function renderCalls(): View {
       { class: 'actions' },
       h(
         'button',
-        { type: 'button', class: 'btn', onclick: () => openGroupDialog() },
-        icon('users', 16),
-        t('calls.newGroup'),
-      ),
-      h(
-        'button',
         { type: 'button', class: 'btn', onclick: () => navigate('/chat') },
         icon('chat', 16),
         t('chat.title'),
@@ -199,7 +237,7 @@ export function renderCalls(): View {
     ),
   );
 
-  page.append(head, notice, grid);
+  page.append(head, notice, hero, sectionHead, grid);
   renderNotice();
   renderCards();
   const unsubscribe = on(events.contactsUpdated, () => {

@@ -102,6 +102,21 @@ function totpSecretFor(ctx: AppContext, user: UserRow): string | null {
   }
 }
 
+function isLocalHostname(hostname: string): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.lan') ||
+    hostname.endsWith('.internal') ||
+    hostname.endsWith('.home') ||
+    hostname.endsWith('.home.arpa') ||
+    hostname.endsWith('.test') ||
+    hostname.endsWith('.example') ||
+    hostname.endsWith('.invalid')
+  );
+}
+
 function relyingParty(req: FastifyRequest, ctx: AppContext): { origin: string; rpId: string } {
   const originHeader = req.headers.origin;
   if (!originHeader) throw badRequest('Origine mancante per WebAuthn');
@@ -116,7 +131,24 @@ function relyingParty(req: FastifyRequest, ctx: AppContext): { origin: string; r
   if (!ctx.config.extraOrigins.includes(parsed.origin) && parsed.origin !== `${req.protocol}://${host}`) {
     throw forbidden('Origine WebAuthn non consentita');
   }
-  const rpId = ctx.config.rpId ?? parsed.hostname;
+  // RP_ID is optional and only useful for a stable custom domain. If it does
+  // not cover the hostname the browser is currently on, ignore it: a stale
+  // value (for example "umbrel.local" while the app is opened through another
+  // name) makes the browser reject every WebAuthn ceremony.
+  const hostname = parsed.hostname.toLowerCase();
+  const configuredRpId = ctx.config.rpId?.toLowerCase().replace(/\.$/, '') ?? null;
+  // Chromium requires both the page host and the RP ID to be under a PSL
+  // registry. Local names (.local, .lan, .home, …) are not, so a parent suffix
+  // such as "umbrel.local" is rejected on "nimbus.umbrel.local": there the RP
+  // ID must match the host exactly. Keep suffix sharing for public domains.
+  const configuredMatchesHost =
+    configuredRpId !== null &&
+    (hostname === configuredRpId ||
+      (configuredRpId.includes('.') &&
+        !isLocalHostname(hostname) &&
+        !isLocalHostname(configuredRpId) &&
+        hostname.endsWith(`.${configuredRpId}`)));
+  const rpId = configuredMatchesHost ? configuredRpId : hostname;
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(rpId) || rpId.includes(':')) {
     throw badRequest('Le passkey richiedono un nome host (non un indirizzo IP). Usa un dominio HTTPS.');
   }

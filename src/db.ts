@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
   read_receipts INTEGER NOT NULL DEFAULT 1,
   quick_share INTEGER NOT NULL DEFAULT 1,
   locale TEXT NOT NULL DEFAULT 'it',
-  theme TEXT NOT NULL DEFAULT 'system',
+  theme TEXT NOT NULL DEFAULT 'dark',
   password_changed_at INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
@@ -282,6 +282,12 @@ export function openDatabase(config: Config): Db {
   db.exec('PRAGMA secure_delete = ON;');
   db.exec(SCHEMA);
   db.prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)').run('schema_version', '1');
+  // Bloom is dark-first: accounts created under the old "system" default adopt the new theme.
+  const version = Number.parseInt(getMeta(db, 'schema_version') ?? '1', 10) || 1;
+  if (version < 2) {
+    db.prepare("UPDATE users SET theme = 'dark' WHERE theme = 'system'").run();
+    setMeta(db, 'schema_version', '2');
+  }
   return db;
 }
 

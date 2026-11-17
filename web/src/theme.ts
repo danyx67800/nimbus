@@ -13,7 +13,7 @@ export function applyTheme(theme: Theme): void {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
     const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    meta.setAttribute('content', dark ? '#080c17' : '#f2f5fb');
+    meta.setAttribute('content', dark ? '#0a0714' : '#fbf8ff');
   }
 }
 
@@ -24,7 +24,7 @@ export function storedTheme(): Theme {
   } catch {
     // ignore
   }
-  return 'system';
+  return 'dark';
 }
 
 export function storedLanguage(): string | null {

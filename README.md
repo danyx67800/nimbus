@@ -53,7 +53,8 @@ cp .env.example .env
 mkdir -p data
 sudo chown -R 1000:1000 data
 # Facoltativo, per le chiamate fuori dalla LAN:
-#   apri .env e imposta TURN_SECRET (openssl rand -hex 32), TURN_HOST e TURN_PORT
+#   apri .env e imposta TURN_SECRET (openssl rand -hex 32), TURN_HOST,
+#   TURN_PORT e, se sei dietro NAT/Docker, TURN_EXTERNAL_IP
 docker compose up -d --build
 ```
 
@@ -86,10 +87,11 @@ La prima scansione richiede il download delle firme; finché ClamAV non è pront
 | `SECURE_COOKIES` | `auto` | `always` per forzare cookie `Secure`. |
 | `EXTRA_ORIGINS` | vuoto | Origini aggiuntive consentite per CSRF/WebSocket, separate da virgola. |
 | `TURN_SECRET` | generato nel volume | Deve coincidere con il segreto statico di coturn quando usi il relay. |
-| `TURN_HOST` / `TURN_PORT` | vuoto / `3478` | Genera automaticamente gli URL `turn:` UDP e TCP. |
+| `TURN_HOST` / `TURN_PORT` | vuoto / `3478` | Nome host o IP che i browser usano per raggiungere coturn; genera gli URL `turn:` UDP e TCP. |
 | `TURN_URLS` | vuoto | Alternativa esplicita, separata da virgole. |
+| `TURN_EXTERNAL_IP` | vuoto | IP che coturn annuncia come relay quando Docker/NAT nasconde l'indirizzo reale (IP LAN, pubblico o Tailscale). |
 | `TURN_REALM` | `nimbus` | Deve coincidere con coturn. |
-| `RP_ID` | derivato dalla richiesta | WebAuthn relying party ID; su Umbrel è `umbrel.local` o il nome Tailscale. |
+| `RP_ID` | derivato dalla richiesta | WebAuthn relying party ID. Lascialo vuoto per seguire il nome host corrente; impostalo solo per un dominio stabile (sui domini pubblici può essere uguale o suffisso dell'host, su quelli locali deve coincidere). |
 | `CLAMAV_HOST` / `CLAMAV_PORT` | vuoto / `3310` | Abilita la scansione. |
 | `MAX_UPLOAD_BYTES` | 2 GiB | Limite per upload. |
 | `MAX_QUICK_SHARE_BYTES` | 2 GiB | Limite per trasferimento rapido. |
@@ -109,7 +111,7 @@ Guida operativa con comandi per Umbrel, Tailscale, Caddy e Cloudflare Tunnel: [`
 3. **Reverse proxy con certificato** (Caddy, nginx, Traefik): termina TLS sul proxy e inoltra a `127.0.0.1:3456`. Imposta `TRUST_PROXY=true`, `REQUIRE_HTTPS=true`, `SECURE_COOKIES=always` e aggiungi l'origine pubblica a `EXTRA_ORIGINS` se il proxy riscrive Host/Origin.
 4. **Cloudflare Tunnel**: comodo per l'accesso remoto, ma Cloudflare termina TLS e vede il traffico applicativo. Non è compatibile con l'idea di "nessun servizio cloud esterno": usalo solo se accetti questo compromesso e documentalo agli utenti.
 
-Con un reverse proxy, mantieni la porta 3000 non pubblicata e limita l'accesso al proxy. Se usi WebAuthn, imposta `RP_ID` sul nome host stabile (non su IP) e non cambiarlo senza riregistrare le passkey.
+Con un reverse proxy, mantieni la porta 3000 non pubblicata e limita l'accesso al proxy. Se usi WebAuthn su un dominio pubblico, imposta `RP_ID` sul nome host stabile (non su IP) e non cambiarlo senza riregistrare le passkey; su nomi locali come `umbrel.local` lascialo vuoto.
 
 ### PWA
 
@@ -129,12 +131,15 @@ In `.env`:
 TURN_SECRET=<openssl rand -hex 32>
 TURN_HOST=turn.example.com
 TURN_PORT=3478
+TURN_EXTERNAL_IP=203.0.113.10
 TURN_REALM=nimbus
 ```
 
+`TURN_HOST` deve essere risolvibile e raggiungibile dai browser di tutti i partecipanti: un nome valido solo in LAN (`umbrel.local`) non funziona da fuori. Con Tailscale usa il nome MagicDNS (`<host>.<tailnet>.ts.net`) o l'IP `100.x.y.z`; in quel caso `TURN_EXTERNAL_IP` deve essere lo stesso IP Tailscale, perché coturn annunci un relay che i client remoti possono raggiungere. Se coturn è dietro NAT, usa l'IP pubblico e inoltra le porte relay. In Docker l'app e coturn stanno su una rete bridge: senza `TURN_EXTERNAL_IP` coturn annuncia l'IP interno del container, irraggiungibile anche dai client in LAN; imposta l'IP del host (LAN, pubblico o Tailscale).
+
 Il backend genera credenziali TURN effimere con HMAC (stile TURN REST API) e le consegna solo a sessioni autenticate. Non usare un segreto statico nel client. Con `TURN_URLS` puoi specificare più URL, ad esempio `turns:` su un reverse proxy TLS; in tal caso configura anche TLS su coturn o sul proxy.
 
-Verifica con la pagina di test Trickle ICE del browser: devono comparire candidati `relay` se il TURN è raggiungibile. Senza TURN, le chiamate funzionano solo sulla stessa LAN o con NAT favorevoli.
+Verifica con la pagina di test Trickle ICE del browser: devono comparire candidati `relay` se il TURN è raggiungibile. Da browser, dopo il login, `await (await fetch('/api/calls/ice')).json()` mostra gli URL `turn:` consegnati ai client: se contengono ancora `umbrel.local`, l'override non è stato applicato. Senza TURN, le chiamate funzionano solo sulla stessa LAN o con NAT favorevoli.
 
 ## UmbrelOS
 
@@ -157,6 +162,7 @@ umbrel/
 - `manifestVersion: 2.0`, `requiresHttps: true`, `storage.dataRoot: data`, `port: 3789`.
 - `app_proxy` punta a `nimbus-app_app_1:3000`; `PROXY_AUTH_ADD: "false"` perché Nimbus ha autenticazione multi-utente propria. L'autenticazione Umbrel è single-owner e impedirebbe agli utenti aggiuntivi di accedere. Le route pubbliche dell'app restano protette da token/password e rate limit; tutte le altre richiedono la sessione Nimbus.
 - `exports.sh` deriva il segreto TURN per installazione con `derive_entropy`; app e coturn ricevono lo stesso valore. Nessun segreto è nel repository.
+- `umbrel-app.yml` espone `TURN_HOST` (servizio `app`) e `TURN_EXTERNAL_IP` (servizio `coturn`) in **Impostazioni → App settings → Nimbus → Advanced → Environment variables**. Sono override applicati al riavvio: non serve modificare il compose né l'immagine. Con Tailscale imposta `TURN_HOST` al nome MagicDNS o all'IP Tailscale e `TURN_EXTERNAL_IP` all'IP Tailscale (`tailscale ip -4`).
 - Tutti i dati stanno in `${APP_DATA_DIR}/data`; il container non scrive nel proprio filesystem.
 
 Pubblicazione:
@@ -165,10 +171,10 @@ Pubblicazione:
 
    ```bash
    docker buildx build --platform linux/amd64,linux/arm64 \
-     -t ghcr.io/danyx67800/nimbus:1.0.2 --push .
+     -t ghcr.io/danyx67800/nimbus:1.1.0 --push .
    ```
 
-2. L'immagine è già riferita come `ghcr.io/danyx67800/nimbus:1.0.2` in `umbrel/nimbus-app/docker-compose.yml`.
+2. L'immagine è già riferita come `ghcr.io/danyx67800/nimbus:1.1.0` in `umbrel/nimbus-app/docker-compose.yml`.
 3. Per generare un pacchetto autonomo:
 
    ```bash

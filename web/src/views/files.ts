@@ -1,6 +1,7 @@
 import { ApiError, api, downloadUrl, fetchTextPreview, uploadFileVersion } from '../api.js';
 import { on } from '../bus.js';
 import { t } from '../i18n.js';
+import { openQuickSharePicker } from '../quick-share.js';
 import { hashFile } from '../sha256.js';
 import { state } from '../store.js';
 import {
@@ -16,6 +17,7 @@ import {
   icon,
   openModal,
   promptDialog,
+  relativeTime,
   showMenu,
   toast,
 } from '../ui.js';
@@ -98,25 +100,13 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     }, 320),
   });
   const searchBox = h('label', { class: 'search-box' }, icon('search', 16), searchInput);
-  const layoutButton = h(
-    'button',
-    {
-      type: 'button',
-      class: 'icon-btn',
-      'aria-label': layout === 'grid' ? t('files.listView') : t('files.gridView'),
-      title: layout === 'grid' ? t('files.listView') : t('files.gridView'),
-      onclick: () => {
-        layout = layout === 'grid' ? 'list' : 'grid';
-        try {
-          localStorage.setItem(LAYOUT_KEY, layout);
-        } catch {
-          // ignore
-        }
-        updateLayoutButton();
-        renderList();
-      },
-    },
-    icon(layout === 'grid' ? 'list' : 'grid', 18),
+  const gridTab = h('button', { type: 'button', onclick: () => setLayout('grid') }, t('home.grid'));
+  const listTab = h('button', { type: 'button', onclick: () => setLayout('list') }, t('home.list'));
+  const layoutTabs = h(
+    'div',
+    { class: 'tabs', role: 'group', 'aria-label': `${t('home.grid')} / ${t('home.list')}` },
+    gridTab,
+    listTab,
   );
   const uploadInput = h('input', {
     type: 'file',
@@ -146,6 +136,49 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     icon('plus', 16),
     t('files.newFolder'),
   );
+  const quickActions = h(
+    'div',
+    { class: 'quick-actions' },
+    quickCard('peach', 'upload', t('files.upload'), t('home.quickUpload'), () => uploadInput.click()),
+    quickCard('lilac', 'folder', t('files.newFolder'), t('home.quickFolder'), () => void createFolder()),
+    quickCard('mint', 'share', t('qs.title'), t('home.quickShare'), () => {
+      if (!window.isSecureContext) {
+        toast(t('qs.insecure'), 'error');
+        return;
+      }
+      openQuickSharePicker();
+    }),
+  );
+  const helloUsed = h('b');
+  const helloQuota = h('b');
+  const hello = h(
+    'section',
+    { class: 'hello' },
+    h('span', { class: 'tag' }, icon('spark', 12), greetingDate()),
+    h(
+      'h1',
+      {},
+      t('home.greeting', { name: (state.user?.displayName ?? '').split(/\s+/)[0] ?? '' }),
+      h('span', { class: 'wave', text: '✦' }),
+    ),
+    h('p', {}, `${t('home.have')} `, helloUsed, ` ${t('home.safeOn')} `, helloQuota, `. ${t('home.encrypted')}`),
+  );
+  const fab = h(
+    'button',
+    {
+      type: 'button',
+      class: 'fab',
+      'aria-label': t('home.add'),
+      onclick: (event: MouseEvent) => {
+        showMenu(event.currentTarget as HTMLElement, [
+          { label: t('files.upload'), iconName: 'upload', onClick: () => uploadInput.click() },
+          { label: t('files.newFolder'), iconName: 'folder', onClick: () => void createFolder() },
+        ]);
+      },
+    },
+    icon('plus', 18),
+    h('span', { text: t('home.add') }),
+  );
 
   const pageHead = h(
     'div',
@@ -166,25 +199,110 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     breadcrumbRow,
     h('div', { class: 'grow' }),
     mode === 'files' ? searchBox : null,
-    layoutButton,
   );
+  const sectionTitle = h('h2');
+  const sectionHead = h('div', { class: 'sec-head' }, sectionTitle, h('div', { class: 'grow' }), layoutTabs);
+  const recentList = h('div', { class: 'recent-list' });
+  const homeSide = h(
+    'aside',
+    { class: 'home-side', 'aria-label': t('home.recent') },
+    h('section', { class: 'panel' }, h('h3', { text: t('home.recent') }), recentList),
+    h(
+      'section',
+      { class: 'panel security-panel' },
+      h('h3', { text: t('home.security') }),
+      h('div', { class: 'security-state' }, icon('shield', 16), h('b', { text: t('home.encryptedTitle') })),
+      h('p', { text: t('home.encryptedText') }),
+      h(
+        'div',
+        { class: 'security-row' },
+        icon(window.isSecureContext ? 'lock' : 'cloud', 14),
+        h('span', { text: window.isSecureContext ? t('home.secure') : t('home.insecure') }),
+      ),
+    ),
+  );
+  const homeMain = h('div', { class: 'home-main' }, sectionHead, listRoot);
+  const columns = h('div', { class: 'home-cols' }, homeMain, homeSide);
+  const node = h('div', { class: 'files-shell' }, hello, quickActions, pageHead, toolbar, columns, fab);
 
-  const node = h('div', { class: 'files-shell' }, pageHead, toolbar, listRoot);
+  function setLayout(next: 'grid' | 'list'): void {
+    layout = next;
+    try {
+      localStorage.setItem(LAYOUT_KEY, layout);
+    } catch {
+      // ignore
+    }
+    syncLayoutTabs();
+    renderList();
+  }
 
-  function updateLayoutButton(): void {
-    layoutButton.replaceChildren(icon(layout === 'grid' ? 'list' : 'grid', 18));
-    layoutButton.setAttribute('aria-label', layout === 'grid' ? t('files.listView') : t('files.gridView'));
-    layoutButton.setAttribute('title', layout === 'grid' ? t('files.listView') : t('files.gridView'));
+  function syncLayoutTabs(): void {
+    gridTab.classList.toggle('on', layout === 'grid');
+    listTab.classList.toggle('on', layout === 'list');
+    gridTab.setAttribute('aria-pressed', String(layout === 'grid'));
+    listTab.setAttribute('aria-pressed', String(layout === 'list'));
+  }
+
+  function sectionLabel(): string {
+    if (search) return t('chat.searchResults');
+    if (mode === 'favorites') return t('home.favorites');
+    if (mode === 'shared') return t('home.shared');
+    if (mode === 'trash') return t('home.trash');
+    return t('home.files');
   }
 
   function updateSubtitle(): void {
-    if (mode === 'files') {
-      const used = state.user?.usedBytes ?? 0;
-      const quota = state.user?.quotaBytes ?? 0;
+    const used = state.user?.usedBytes ?? 0;
+    const quota = state.user?.quotaBytes ?? 0;
+    helloUsed.textContent = formatBytes(used);
+    helloQuota.textContent = formatBytes(quota);
+    if (mode === 'files')
       subtitle.textContent = t('files.storage', { used: formatBytes(used), quota: formatBytes(quota) });
-    } else if (mode === 'favorites') subtitle.textContent = 'I tuoi file e cartelle preferiti.';
+    else if (mode === 'favorites') subtitle.textContent = 'I tuoi file e cartelle preferiti.';
     else if (mode === 'shared') subtitle.textContent = 'Elementi che altri utenti hanno condiviso con te.';
     else subtitle.textContent = 'Gli elementi eliminati restano qui fino all’eliminazione definitiva.';
+    sectionTitle.textContent = sectionLabel();
+    updateChrome();
+  }
+
+  function updateChrome(): void {
+    const home = mode === 'files' && !parentId && !search;
+    hello.hidden = !home;
+    quickActions.hidden = !home;
+    pageHead.hidden = home;
+    breadcrumbRow.hidden = home;
+    fab.hidden = mode !== 'files' || Boolean(search);
+    layoutTabs.hidden = mode === 'trash';
+    homeSide.hidden = !home;
+    columns.classList.toggle('single', !home);
+  }
+
+  function renderRecent(): void {
+    const recent = [...items].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 3);
+    recentList.replaceChildren();
+    if (recent.length === 0) {
+      recentList.append(h('p', { class: 'hint', text: t('home.noRecent') }));
+      return;
+    }
+    for (const item of recent) {
+      recentList.append(
+        h(
+          'button',
+          { type: 'button', class: 'recent-row', onclick: () => openItem(item) },
+          h(
+            'span',
+            { class: `recent-icon ${toneFor(item, 0)}` },
+            item.kind === 'folder' ? icon('folder', 16) : fileIcon(item.kind, item.mime),
+          ),
+          h(
+            'span',
+            { class: 'recent-text' },
+            h('b', { text: item.name }),
+            h('small', { text: relativeTime(item.updatedAt) }),
+          ),
+        ),
+      );
+    }
   }
 
   function renderBreadcrumb(): void {
@@ -304,15 +422,9 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
 
   function renderList(): void {
     listRoot.replaceChildren();
+    renderRecent();
     if (loading && items.length === 0) {
-      listRoot.append(
-        h(
-          'div',
-          { class: 'empty' },
-          h('div', { class: 'empty-icon' }, icon('cloud', 28)),
-          h('p', { text: t('common.loading') }),
-        ),
-      );
+      listRoot.append(skeletonList());
       return;
     }
     if (errorMessage) {
@@ -355,13 +467,37 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
 
     if (layout === 'grid' && mode !== 'trash') {
       const grid = h('div', { class: 'file-grid' });
-      for (const item of items) grid.append(fileCard(item));
+      items.forEach((item, index) => {
+        grid.append(fileCard(item, index));
+      });
       listRoot.append(grid);
       return;
     }
     const list = h('div', { class: 'file-list', role: 'list' });
-    for (const item of items) list.append(fileRow(item));
+    items.forEach((item, index) => {
+      list.append(fileRow(item, index));
+    });
     listRoot.append(list);
+  }
+
+  function skeletonList(): HTMLElement {
+    const wrap = h('div', { class: 'skeleton-list', role: 'status', 'aria-label': t('common.loading') });
+    for (let index = 0; index < 6; index += 1) {
+      wrap.append(
+        h(
+          'div',
+          { class: 'skeleton-row' },
+          h('div', { class: 'skeleton skeleton-icon' }),
+          h(
+            'div',
+            { class: 'grow' },
+            h('div', { class: 'skeleton skeleton-line sk-w-60' }),
+            h('div', { class: 'skeleton skeleton-line sk-w-30' }),
+          ),
+        ),
+      );
+    }
+    return wrap;
   }
 
   function cardMenu(item: FileItem): HTMLButtonElement {
@@ -380,8 +516,8 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     );
   }
 
-  function fileCard(item: FileItem): HTMLElement {
-    const thumb = h('div', { class: 'thumb' });
+  function fileCard(item: FileItem, index: number): HTMLElement {
+    const thumb = h('div', { class: `thumb ${toneFor(item, index)}` });
     if (item.kind === 'folder') thumb.append(icon('folder', 30));
     else if (item.mime.startsWith('image/') && item.size < 8 * 1024 * 1024) {
       thumb.append(
@@ -393,10 +529,12 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
         }),
       );
     } else thumb.append(fileIcon(item.kind, item.mime));
+    if (item.kind !== 'folder') thumb.append(h('span', { class: 'tag', text: fileExtension(item.name) }));
     const card = h(
       'div',
       {
         class: 'file-card',
+        style: { '--i': String(index) },
         role: 'button',
         tabindex: '0',
         onclick: () => openItem(item),
@@ -412,6 +550,8 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
       h(
         'div',
         { class: 'file-meta' },
+        h('span', { text: formatDate(item.updatedAt) }),
+        h('span', { class: 'dot', 'aria-hidden': 'true' }),
         h('span', { text: item.kind === 'folder' ? t('files.folder') : formatBytes(item.size) }),
         item.favorite ? icon('star', 13) : null,
       ),
@@ -420,7 +560,7 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     return card;
   }
 
-  function fileRow(item: FileItem): HTMLElement {
+  function fileRow(item: FileItem, index: number): HTMLElement {
     const meta = item.ownerName
       ? t('files.sharedBy', { name: item.ownerName })
       : item.kind === 'folder'
@@ -430,6 +570,7 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
       'div',
       {
         class: 'file-row',
+        style: { '--i': String(index) },
         role: 'listitem',
         tabindex: '0',
         onclick: () => openItem(item),
@@ -1037,7 +1178,7 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     });
   }
 
-  updateLayoutButton();
+  syncLayoutTabs();
   updateSubtitle();
   renderBreadcrumb();
   renderList();
@@ -1056,7 +1197,7 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
 function titleFor(mode: Mode): string {
   switch (mode) {
     case 'favorites':
-      return 'Preferiti';
+      return t('nav.favorites');
     case 'shared':
       return t('nav.shared');
     case 'trash':
@@ -1068,8 +1209,44 @@ function titleFor(mode: Mode): string {
 
 function readLayout(): 'list' | 'grid' {
   try {
-    return localStorage.getItem(LAYOUT_KEY) === 'grid' ? 'grid' : 'list';
+    return localStorage.getItem(LAYOUT_KEY) === 'list' ? 'list' : 'grid';
   } catch {
-    return 'list';
+    return 'grid';
   }
+}
+
+function toneFor(item: FileItem, index: number): string {
+  if (item.kind === 'folder') return 'lilac';
+  if (item.mime.startsWith('image/')) return 'mint';
+  if (item.mime === 'application/pdf') return 'peach';
+  if (item.mime.startsWith('video/')) return 'lilac';
+  if (item.mime.startsWith('audio/')) return 'sky';
+  return ['peach', 'lilac', 'mint', 'sky'][index % 4] ?? 'lilac';
+}
+
+function fileExtension(name: string): string {
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0 || dot === name.length - 1) return 'FILE';
+  return name
+    .slice(dot + 1)
+    .slice(0, 5)
+    .toUpperCase();
+}
+
+function greetingDate(): string {
+  const locale = document.documentElement.lang === 'en' ? 'en-GB' : 'it-IT';
+  const formatted = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long' }).format(
+    new Date(),
+  );
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
+function quickCard(tone: string, iconName: string, title: string, hint: string, action: () => void): HTMLElement {
+  return h(
+    'button',
+    { type: 'button', class: `quick-card ${tone}`, onclick: action },
+    h('div', { class: 'q-icon' }, icon(iconName, 21)),
+    h('div', { class: 'q-text' }, h('b', { text: title }), h('span', { text: hint })),
+    h('span', { class: 'q-arrow' }, icon('arrow', 16)),
+  );
 }

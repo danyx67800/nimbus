@@ -4,13 +4,31 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#0b1020" />
+    <meta name="theme-color" content="#0a0714" />
     <meta name="description" content="__APP_TAGLINE__" />
     <meta name="application-name" content="__APP_NAME__" />
     <title>__APP_NAME__</title>
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <script nonce="__CSP_NONCE__">
+      try {
+        var theme = localStorage.getItem('nimbus-theme');
+        var dark = true;
+        if (theme === 'light' || theme === 'dark') {
+          document.documentElement.dataset.theme = theme;
+          dark = theme === 'dark';
+        } else if (theme === 'system') {
+          dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        } else {
+          document.documentElement.dataset.theme = 'dark';
+        }
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', dark ? '#0a0714' : '#fbf8ff');
+      } catch (error) {
+        /* storage disabled */
+      }
+    </script>
     <link rel="stylesheet" href="/assets/styles.css" nonce="__CSP_NONCE__" />
     <script type="module" src="/assets/app.js" nonce="__CSP_NONCE__"></script>
   </head>

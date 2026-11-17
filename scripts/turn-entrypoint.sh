@@ -4,7 +4,7 @@ set -eu
 : "${TURN_SECRET:?TURN_SECRET is required for the calls profile}"
 : "${TURN_REALM:=nimbus}"
 
-exec turnserver \
+set -- \
   -n \
   --log-file=stdout \
   --pidfile=/tmp/turnserver.pid \
@@ -18,3 +18,10 @@ exec turnserver \
   --no-dtls \
   --min-port=49160 \
   --max-port=49200
+
+# Docker/NAT: advertise the address peers can actually reach.
+if [ -n "${TURN_EXTERNAL_IP:-}" ]; then
+  set -- "$@" --external-ip="$TURN_EXTERNAL_IP"
+fi
+
+exec turnserver "$@"

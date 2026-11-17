@@ -152,8 +152,8 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
           scope: '/',
           display: 'standalone',
           orientation: 'any',
-          background_color: '#0b1020',
-          theme_color: '#0b1020',
+          background_color: '#0a0714',
+          theme_color: '#0a0714',
           categories: ['productivity', 'utilities'],
           icons: [
             { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
@@ -172,7 +172,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="${escapeHtml(
       config.branding.name,
     )}">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f7cff"/><stop offset="1" stop-color="#a84dff"/></linearGradient></defs>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8f6cf5"/><stop offset="1" stop-color="#6a45dd"/></linearGradient></defs>
 <rect width="512" height="512" rx="112" fill="url(#g)"/>
 <path d="M120 356c46-24 59-83 112-112 25-14 54-18 86-12 31 6 51 21 74 16" fill="none" stroke="#ffffff" stroke-opacity="0.28" stroke-width="26" stroke-linecap="round"/>
 <circle cx="390" cy="142" r="74" fill="#ffffff" fill-opacity="0.16"/>
