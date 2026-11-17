@@ -73,7 +73,7 @@ type Mode = 'files' | 'favorites' | 'shared' | 'trash';
 
 const LAYOUT_KEY = 'nimbus-files-layout';
 
-export function renderFiles(options: { mode: Mode; folderId?: string; search?: string }): View {
+export function renderFiles(options: { mode: Mode; folderId?: string; search?: string; openFileId?: string }): View {
   let mode = options.mode;
   let parentId: string | null = options.folderId ?? null;
   let search = options.search ?? '';
@@ -775,6 +775,23 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     void modal;
   }
 
+  async function openFromSpotlight(id: string): Promise<void> {
+    try {
+      const response = await api<{ item: FileItem }>(`/api/files/${encodeURIComponent(id)}`);
+      if (destroyed) return;
+      const item = response.item;
+      if (item.kind === 'folder') {
+        goTo(item.id);
+        return;
+      }
+      history.replaceState(null, '', item.parentId ? `/files?folder=${encodeURIComponent(item.parentId)}` : '/files');
+      await openPreview(item);
+    } catch (error) {
+      history.replaceState(null, '', '/files');
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'error');
+    }
+  }
+
   async function openVersions(item: FileItem): Promise<void> {
     const body = h('div', { class: 'version-list' }, h('p', { class: 'soft', text: t('common.loading') }));
     const uploadVersionInput = h('input', {
@@ -1183,6 +1200,7 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
   renderBreadcrumb();
   renderList();
   void load();
+  if (options.openFileId) void openFromSpotlight(options.openFileId);
 
   const unsubscribeUser = on('nimbus:user-refreshed', updateSubtitle);
   return {

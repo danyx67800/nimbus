@@ -8,6 +8,7 @@ Nessun servizio cloud, nessuna CDN, nessuna telemetria: il browser carica solo a
 
 ## Funzionalità
 
+- **Ricerca globale**: barra in alto e spotlight con scorciatoia `⌘K` / `Ctrl K`, ricerca file e navigazione rapida.
 - **File**: cartelle, drag & drop multiplo, upload a chunk riprendibile, download, anteprime (immagini, PDF, video, audio, testo), rinomina, sposta, copia, preferiti, cestino con ripristino, ricerca, versioni.
 - **Condivisione**: con altri utenti (lettura/scrittura) e link pubblici con password, scadenza, limite download e revoca.
 - **Cifratura a riposo**: AES-256-GCM a chunk da 1 MiB, header versionato, AAD legato a file/versione/indice; chiavi per file avvolte con la master key dell'istanza.
@@ -15,7 +16,7 @@ Nessun servizio cloud, nessuna CDN, nessuna telemetria: il browser carica solo a
 - **Chiamate**: mesh WebRTC fino a 4 partecipanti, audio/video, screen share, mute, cambio dispositivi, qualità adattiva, suoneria, rifiuto/occupato. Credenziali TURN effimere HMAC.
 - **Condivisione rapida**: presenza, overlay radar, richiesta con nome/dimensione/tipo/SHA-256, accettazione/rifiuto, timeout 60 s, DataChannel con backpressure e verifica hash, annullamento, fallback cifrato nella chat 1:1.
 - **Account**: niente registrazione pubblica; admin crea utenti o inviti monouso; ruoli, quote, pannello admin, sessioni revocabili, audit; Argon2id, TOTP con codici di recupero, passkey WebAuthn opzionali.
-- **PWA**: manifest, service worker, offline page, tema chiaro/scuro, interfaccia it/en.
+- **PWA**: manifest, service worker, offline page, temi chiaro, scuro e nero OLED, interfaccia it/en.
 
 ## Requisiti
 
@@ -171,10 +172,10 @@ Pubblicazione:
 
    ```bash
    docker buildx build --platform linux/amd64,linux/arm64 \
-     -t ghcr.io/danyx67800/nimbus:1.1.0 --push .
+     -t ghcr.io/danyx67800/nimbus:1.1.1 --push .
    ```
 
-2. L'immagine è già riferita come `ghcr.io/danyx67800/nimbus:1.1.0` in `umbrel/nimbus-app/docker-compose.yml`.
+2. L'immagine è già riferita come `ghcr.io/danyx67800/nimbus:1.1.1` in `umbrel/nimbus-app/docker-compose.yml`.
 3. Per generare un pacchetto autonomo:
 
    ```bash

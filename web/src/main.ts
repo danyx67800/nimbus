@@ -47,7 +47,10 @@ function applyUserPreferences(): void {
   setLanguage(lang);
   rememberLanguage(lang);
   const theme =
-    state.user.theme === 'light' || state.user.theme === 'dark' || state.user.theme === 'system'
+    state.user.theme === 'light' ||
+    state.user.theme === 'dark' ||
+    state.user.theme === 'black' ||
+    state.user.theme === 'system'
       ? state.user.theme
       : storedTheme();
   applyTheme(theme);

@@ -520,7 +520,7 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
         readReceipts: z.boolean().optional(),
         quickShare: z.boolean().optional(),
         locale: z.enum(['it', 'en']).optional(),
-        theme: z.enum(['system', 'light', 'dark']).optional(),
+        theme: z.enum(['system', 'light', 'dark', 'black']).optional(),
       }),
       req.body,
     );

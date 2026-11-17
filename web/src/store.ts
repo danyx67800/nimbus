@@ -81,7 +81,7 @@ interface State {
   contacts: Contact[];
   rooms: Room[];
   lang: Lang;
-  theme: 'system' | 'light' | 'dark';
+  theme: 'system' | 'light' | 'dark' | 'black';
   unread: number;
   online: Set<string>;
 }

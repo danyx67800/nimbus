@@ -1,6 +1,13 @@
-export type Theme = 'system' | 'light' | 'dark';
+export type Theme = 'system' | 'light' | 'dark' | 'black';
 
 const KEY = 'nimbus-theme';
+
+function themeColor(theme: Theme): string {
+  if (theme === 'black') return '#000000';
+  if (theme === 'light') return '#fbf8ff';
+  if (theme === 'system' && !window.matchMedia('(prefers-color-scheme: dark)').matches) return '#fbf8ff';
+  return '#0a0714';
+}
 
 export function applyTheme(theme: Theme): void {
   if (theme === 'system') delete document.documentElement.dataset.theme;
@@ -11,16 +18,13 @@ export function applyTheme(theme: Theme): void {
     // private mode / storage disabled
   }
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) {
-    const dark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-    meta.setAttribute('content', dark ? '#0a0714' : '#fbf8ff');
-  }
+  if (meta) meta.setAttribute('content', themeColor(theme));
 }
 
 export function storedTheme(): Theme {
   try {
     const value = localStorage.getItem(KEY);
-    if (value === 'light' || value === 'dark' || value === 'system') return value;
+    if (value === 'light' || value === 'dark' || value === 'black' || value === 'system') return value;
   } catch {
     // ignore
   }

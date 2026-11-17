@@ -3,6 +3,7 @@ import { events, on } from '../bus.js';
 import { t } from '../i18n.js';
 import { openQuickSharePicker } from '../quick-share.js';
 import { navigate } from '../router.js';
+import { openSpotlight, spotlightShortcutLabel } from '../spotlight.js';
 import { state, storageUsed } from '../store.js';
 import { avatarEl, currentPresenceStatus, formatBytes, h, icon, showMenu, toast } from '../ui.js';
 import { renderAdmin } from './admin.js';
@@ -39,29 +40,6 @@ function sectionFor(path: string): string {
   return 'files';
 }
 
-function titleFor(section: string): string {
-  switch (section) {
-    case 'chat':
-      return t('nav.chat');
-    case 'calls':
-      return t('nav.calls');
-    case 'favorites':
-      return t('nav.favorites');
-    case 'shared':
-      return t('nav.shared');
-    case 'trash':
-      return t('nav.trash');
-    case 'settings':
-      return t('nav.settings');
-    case 'admin':
-      return t('nav.admin');
-    case 'help':
-      return t('nav.help');
-    default:
-      return t('nav.files');
-  }
-}
-
 function renderView(path: string): View {
   const params = new URLSearchParams(location.search);
   const section = sectionFor(path);
@@ -79,6 +57,7 @@ function renderView(path: string): View {
     mode: path.startsWith('/favorites') ? 'favorites' : 'files',
     folderId: params.get('folder') ?? undefined,
     search: params.get('q') ?? undefined,
+    openFileId: params.get('file') ?? undefined,
   });
 }
 
@@ -229,9 +208,20 @@ export function renderShell(path: string): View {
   );
 
   const view = renderView(path);
-  const topbarTitle = ['files', 'favorites', 'shared', 'trash'].includes(section)
-    ? null
-    : h('div', { class: 'topbar-title', text: titleFor(section) });
+  const topbarSearch = h(
+    'button',
+    {
+      type: 'button',
+      class: 'topbar-search',
+      'aria-label': t('spotlight.open'),
+      title: `${t('spotlight.open')} (${spotlightShortcutLabel()})`,
+      'aria-keyshortcuts': 'Meta+K Control+K',
+      onclick: () => openSpotlight(),
+    },
+    icon('search', 18),
+    h('span', { class: 'topbar-search-label', text: t('spotlight.searchPlaceholder') }),
+    h('kbd', { class: 'topbar-search-kbd', text: spotlightShortcutLabel() }),
+  );
   const quickShareButton = h(
     'button',
     {
@@ -275,7 +265,7 @@ export function renderShell(path: string): View {
     'header',
     { class: 'topbar' },
     menuButton,
-    topbarTitle,
+    topbarSearch,
     h('div', { class: 'spacer' }),
     quickShareButton,
     h(
@@ -325,6 +315,16 @@ export function renderShell(path: string): View {
   });
   const onKey = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') closeSidebar();
+    if (
+      !event.defaultPrevented &&
+      !event.altKey &&
+      !event.shiftKey &&
+      (event.metaKey || event.ctrlKey) &&
+      event.key.toLowerCase() === 'k'
+    ) {
+      event.preventDefault();
+      openSpotlight();
+    }
   };
   window.addEventListener('keydown', onKey);
 

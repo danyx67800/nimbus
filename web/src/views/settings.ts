@@ -217,10 +217,12 @@ export function renderSettings(): View {
     h('option', { value: 'system', text: t('common.system'), selected: user.theme === 'system' }),
     h('option', { value: 'light', text: t('common.light'), selected: user.theme === 'light' }),
     h('option', { value: 'dark', text: t('common.dark'), selected: user.theme === 'dark' }),
+    h('option', { value: 'black', text: t('common.black'), selected: user.theme === 'black' }),
   );
   theme.addEventListener('change', async () => {
     try {
-      const value = theme.value === 'light' || theme.value === 'dark' ? theme.value : 'system';
+      const value =
+        theme.value === 'light' || theme.value === 'dark' || theme.value === 'black' ? theme.value : 'system';
       await api('/api/me', { method: 'PATCH', body: { theme: value } });
       state.user!.theme = value;
       applyTheme(value);
@@ -244,7 +246,7 @@ export function renderSettings(): View {
     'div',
     {},
     settingRow(t('common.language'), 'Interfaccia it / en', language),
-    settingRow(t('common.theme'), 'Segue il sistema oppure forza chiaro/scuro', theme),
+    settingRow(t('common.theme'), t('settings.themeHint'), theme),
     settingRow(t('settings.readReceipts'), 'Comunica agli altri quando hai letto i messaggi', readReceipts),
     settingRow(t('settings.quickShare'), 'Consenti agli altri di inviarti file con la condivisione rapida', quickShare),
     settingRow('Suono delle notifiche', 'Suono per chiamate e file in arrivo', notificationsSound),
