@@ -7,6 +7,19 @@ services:
       # would prevent additional Nimbus users from signing in.
       PROXY_AUTH_ADD: "false"
 
+  # The bind mount may be owned by root; the app runs as UID 1000 and
+  # needs to create the database and secrets on first boot.
+  prepara:
+    image: alpine:3
+    restart: "no"
+    network_mode: none
+    command:
+      - sh
+      - -c
+      - "mkdir -p /data && chown -R 1000:1000 /data"
+    volumes:
+      - ${APP_DATA_DIR}/data:/data
+
   app:
     image: ghcr.io/danyx67800/nimbus:1.0.0
     restart: unless-stopped
@@ -35,6 +48,9 @@ services:
       RP_ID: ${DEVICE_DOMAIN_NAME}
     volumes:
       - ${APP_DATA_DIR}/data:/data
+    depends_on:
+      prepara:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [

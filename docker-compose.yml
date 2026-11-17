@@ -1,6 +1,17 @@
 name: nimbus
 
 services:
+  prepara:
+    image: alpine:3
+    restart: "no"
+    network_mode: none
+    command:
+      - sh
+      - -c
+      - "mkdir -p /data && chown -R 1000:1000 /data"
+    volumes:
+      - ./data:/data
+
   app:
     build: .
     image: nimbus:1.0.0
@@ -34,6 +45,9 @@ services:
       CLAMAV_PORT: "${CLAMAV_PORT:-3310}"
     volumes:
       - ./data:/data
+    depends_on:
+      prepara:
+        condition: service_completed_successfully
     healthcheck:
       test:
         [

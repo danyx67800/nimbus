@@ -45,15 +45,5 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.version=1.0.0
 
-      - name: Make GHCR package public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          for attempt in 1 2 3 4 5; do
-            if gh api --method PATCH "/user/packages/container/nimbus/visibility" -f visibility=public; then
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "Could not set package visibility; set it manually in GitHub package settings." >&2
-          exit 1
+      # GHCR serves this image anonymously; verified with `docker manifest
+      # inspect` from an empty Docker config. Package visibility is public.
