@@ -37,13 +37,13 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/nimbus:1.1.1
+            ghcr.io/${{ github.repository_owner }}/nimbus:1.2.0
             ghcr.io/${{ github.repository_owner }}/nimbus:latest
           labels: |
             org.opencontainers.image.title=Nimbus
             org.opencontainers.image.description=Self-hosted files, chat, calls and quick share
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.version=1.1.1
+            org.opencontainers.image.version=1.2.0
 
       # GHCR serves this image anonymously; verified with `docker manifest
       # inspect` from an empty Docker config. Package visibility is public.

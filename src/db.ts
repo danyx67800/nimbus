@@ -268,9 +268,51 @@ CREATE TABLE IF NOT EXISTS audit (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS audit_time ON audit(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS board_columns (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS board_columns_owner ON board_columns(owner_id, position);
+
+CREATE TABLE IF NOT EXISTS board_cards (
+  id TEXT PRIMARY KEY,
+  column_id TEXT NOT NULL REFERENCES board_columns(id) ON DELETE CASCADE,
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'doing', 'done')),
+  position INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS board_cards_column ON board_cards(column_id, position);
+CREATE INDEX IF NOT EXISTS board_cards_owner ON board_cards(owner_id);
+
+CREATE TABLE IF NOT EXISTS board_card_tasks (
+  id TEXT PRIMARY KEY,
+  card_id TEXT NOT NULL REFERENCES board_cards(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'doing', 'done')),
+  done INTEGER NOT NULL DEFAULT 0,
+  notes TEXT NOT NULL DEFAULT '',
+  position INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS board_card_tasks_card ON board_card_tasks(card_id, position);
 `;
 
 export type Db = DatabaseSync;
+
+function hasColumn(db: Db, table: string, column: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return rows.some((row) => row.name === column);
+}
 
 export function openDatabase(config: Config): Db {
   fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
@@ -283,10 +325,37 @@ export function openDatabase(config: Config): Db {
   db.exec(SCHEMA);
   db.prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)').run('schema_version', '1');
   // Bloom is dark-first: accounts created under the old "system" default adopt the new theme.
-  const version = Number.parseInt(getMeta(db, 'schema_version') ?? '1', 10) || 1;
+  let version = Number.parseInt(getMeta(db, 'schema_version') ?? '1', 10) || 1;
   if (version < 2) {
     db.prepare("UPDATE users SET theme = 'dark' WHERE theme = 'system'").run();
     setMeta(db, 'schema_version', '2');
+    version = 2;
+  }
+  if (version < 3) {
+    db.prepare("UPDATE board_columns SET title = 'Completate' WHERE title = 'Fatto'").run();
+    setMeta(db, 'schema_version', '3');
+    version = 3;
+  }
+  if (version < 4) {
+    if (!hasColumn(db, 'board_cards', 'status')) {
+      db.exec("ALTER TABLE board_cards ADD COLUMN status TEXT NOT NULL DEFAULT 'todo'");
+    }
+    if (!hasColumn(db, 'board_card_tasks', 'status')) {
+      db.exec("ALTER TABLE board_card_tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'todo'");
+    }
+    db.exec(`UPDATE board_cards SET status = CASE
+      WHEN column_id IN (SELECT id FROM board_columns WHERE lower(trim(title)) IN ('in corso', 'doing', 'in progress', 'in lavorazione')) THEN 'doing'
+      WHEN column_id IN (SELECT id FROM board_columns WHERE lower(trim(title)) IN ('completate', 'completata', 'completato', 'fatto', 'fatta', 'fatte', 'done')) THEN 'done'
+      ELSE 'todo' END`);
+    db.exec("UPDATE board_card_tasks SET status = CASE WHEN done = 1 THEN 'done' ELSE 'todo' END");
+    setMeta(db, 'schema_version', '4');
+    version = 4;
+  }
+  if (version < 5) {
+    if (!hasColumn(db, 'board_card_tasks', 'notes')) {
+      db.exec("ALTER TABLE board_card_tasks ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
+    }
+    setMeta(db, 'schema_version', '5');
   }
   return db;
 }

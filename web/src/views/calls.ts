@@ -3,7 +3,7 @@ import { startCall, startGroupCall } from '../calls-manager.js';
 import { t } from '../i18n.js';
 import { navigate } from '../router.js';
 import { state } from '../store.js';
-import { avatarEl, emptyState, h, icon, openModal, toast } from '../ui.js';
+import { avatarEl, createSelectPill, emptyState, h, icon, openModal, toast } from '../ui.js';
 import type { View } from './types.js';
 
 export function renderCalls(): View {
@@ -78,12 +78,14 @@ export function renderCalls(): View {
         ),
       );
     }
-    const kind = h(
-      'select',
-      { class: 'select' },
-      h('option', { value: 'video', text: t('calls.video') }),
-      h('option', { value: 'audio', text: t('calls.audio') }),
-    );
+    const kind = createSelectPill({
+      value: 'video',
+      ariaLabel: 'Tipo',
+      options: [
+        { value: 'video', label: t('calls.video'), dotColor: 'var(--accent)' },
+        { value: 'audio', label: t('calls.audio'), dotColor: 'var(--mint)' },
+      ],
+    });
     const modal = openModal({
       title: t('calls.newGroup'),
       body: h(

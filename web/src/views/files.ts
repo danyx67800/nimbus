@@ -8,6 +8,7 @@ import {
   avatarEl,
   confirmDialog,
   copyToClipboard,
+  createSelectPill,
   debounce,
   emptyState,
   fileIcon,
@@ -947,18 +948,23 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
         );
         const available = state.contacts.filter((contact) => !contact.blocked && contact.id !== state.user?.id);
         if (available.length > 0) {
-          const select = h(
-            'select',
-            { class: 'select', 'aria-label': t('files.shareWith') },
-            h('option', { value: '', text: '—' }),
-            ...available.map((contact) => h('option', { value: contact.id, text: contact.displayName })),
-          );
-          const permission = h(
-            'select',
-            { class: 'select', 'aria-label': t('files.permissionRead') },
-            h('option', { value: 'read', text: t('files.permissionRead') }),
-            h('option', { value: 'write', text: t('files.permissionWrite') }),
-          );
+          const select = createSelectPill({
+            ariaLabel: t('files.shareWith'),
+            value: '',
+            placeholder: '—',
+            options: [
+              { value: '', label: '—' },
+              ...available.map((contact) => ({ value: contact.id, label: contact.displayName })),
+            ],
+          });
+          const permission = createSelectPill({
+            ariaLabel: t('files.permissionRead'),
+            value: 'read',
+            options: [
+              { value: 'read', label: t('files.permissionRead'), dotColor: 'var(--muted)' },
+              { value: 'write', label: t('files.permissionWrite'), dotColor: 'var(--accent)' },
+            ],
+          });
           const add = h(
             'button',
             {

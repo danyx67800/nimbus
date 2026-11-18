@@ -7,6 +7,7 @@ import { openSpotlight, spotlightShortcutLabel } from '../spotlight.js';
 import { state, storageUsed } from '../store.js';
 import { avatarEl, currentPresenceStatus, formatBytes, h, icon, showMenu, toast } from '../ui.js';
 import { renderAdmin } from './admin.js';
+import { renderBoard } from './board.js';
 import { renderCalls } from './calls.js';
 import { renderChat } from './chat.js';
 import { renderFiles } from './files.js';
@@ -17,6 +18,7 @@ import type { View } from './types.js';
 const NAV = [
   { key: 'files', path: '/files', icon: 'files', label: 'nav.files' },
   { key: 'favorites', path: '/favorites', icon: 'star', label: 'nav.favorites' },
+  { key: 'board', path: '/board', icon: 'kanban', label: 'nav.board' },
   { key: 'chat', path: '/chat', icon: 'chat', label: 'nav.chat' },
   { key: 'calls', path: '/calls', icon: 'phone', label: 'nav.calls' },
   { key: 'shared', path: '/shared', icon: 'share', label: 'nav.shared' },
@@ -29,6 +31,7 @@ const BOTTOM_NAV = [
 ];
 
 function sectionFor(path: string): string {
+  if (path.startsWith('/board')) return 'board';
   if (path.startsWith('/chat')) return 'chat';
   if (path.startsWith('/calls')) return 'calls';
   if (path.startsWith('/shared')) return 'shared';
@@ -43,6 +46,7 @@ function sectionFor(path: string): string {
 function renderView(path: string): View {
   const params = new URLSearchParams(location.search);
   const section = sectionFor(path);
+  if (section === 'board') return renderBoard();
   if (section === 'chat') {
     const roomId = path.startsWith('/chat/') ? path.slice('/chat/'.length) : undefined;
     return { ...renderChat(roomId), flush: true };

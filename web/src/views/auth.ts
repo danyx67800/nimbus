@@ -2,7 +2,7 @@ import { startAuthentication } from '@simplewebauthn/browser';
 import { ApiError, api, type SessionResponse, setCsrf } from '../api.js';
 import { t } from '../i18n.js';
 import type { AppConfig } from '../store.js';
-import { h, icon } from '../ui.js';
+import { createSelectPill, h, icon } from '../ui.js';
 
 function errorLine(): HTMLElement {
   return h('div', { class: 'error-text', role: 'alert', hidden: true });
@@ -182,12 +182,15 @@ export function renderLogin(config: AppConfig, notice?: string): HTMLElement {
 
 function showTwoFactor(challengeId: string, form: HTMLFormElement, error: HTMLElement): void {
   const code = input('twofactor-code', 'text', 'one-time-code', { inputmode: 'numeric', maxlength: '20' });
-  const method = h(
-    'select',
-    { class: 'select', id: 'twofactor-method' },
-    h('option', { value: 'totp', text: 'Codice app di autenticazione' }),
-    h('option', { value: 'recovery', text: 'Codice di recupero' }),
-  );
+  const method = createSelectPill({
+    id: 'twofactor-method',
+    value: 'totp',
+    ariaLabel: 'Metodo',
+    options: [
+      { value: 'totp', label: 'Codice app di autenticazione', dotColor: 'var(--accent)' },
+      { value: 'recovery', label: 'Codice di recupero', dotColor: 'var(--warning)' },
+    ],
+  });
   const submit = loadingButton(t('auth.verify'));
   form.replaceChildren(
     h('h2', { style: { fontSize: '18px' }, text: t('auth.twoFactor') }),

@@ -81,6 +81,7 @@ const ICONS: Record<string, string> = {
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   close: '<path d="m6 6 12 12M18 6 6 18"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
   download: '<path d="M12 4v12M7.5 11.5 12 16l4.5-4.5"/><path d="M4 17v2.5h16V17"/>',
   star: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"/>',
   link: '<path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.1-1.1"/>',
@@ -114,6 +115,8 @@ const ICONS: Record<string, string> = {
   arrowLeft: '<path d="m15 18-6-6 6-6"/>',
   play: '<path d="m8 5 11 7-11 7Z"/>',
   grid: '<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/>',
+  kanban:
+    '<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="11" rx="1.5"/><rect x="16" y="4" width="5" height="7" rx="1.5"/>',
   list: '<path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/>',
   key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l2 2M14 9l2 2"/>',
   refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
@@ -254,6 +257,7 @@ export interface ModalOptions {
   body: Node | string;
   actions?: ModalAction[];
   wide?: boolean;
+  className?: string;
   onClose?: () => void;
 }
 
@@ -302,7 +306,12 @@ export function openModal(options: ModalOptions): OpenModal {
 
   const modal = h(
     'div',
-    { class: `modal ${options.wide ? 'wide' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId },
+    {
+      class: `modal ${options.wide ? 'wide' : ''} ${options.className ?? ''}`.trim(),
+      role: 'dialog',
+      'aria-modal': 'true',
+      'aria-labelledby': titleId,
+    },
     h('div', { class: 'modal-header' }, h('h2', { id: titleId, text: options.title }), closeButton),
     body,
     footer,
@@ -320,6 +329,8 @@ export function openModal(options: ModalOptions): OpenModal {
   root.append(backdrop);
 
   const onKey = (event: KeyboardEvent): void => {
+    const modals = root.querySelectorAll<HTMLElement>('.modal');
+    if (modals.length > 0 && modals[modals.length - 1] !== modal) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       close();
@@ -450,8 +461,85 @@ export function emptyState(iconName: string, title: string, text: string, action
 export interface MenuItem {
   label: string;
   iconName?: string;
+  dotColor?: string;
+  selected?: boolean;
   danger?: boolean;
   onClick: () => void | Promise<void>;
+}
+
+export interface SelectPillOption {
+  value: string;
+  label: string;
+  dotColor?: string;
+}
+
+export interface SelectPillOptions {
+  options: SelectPillOption[];
+  value?: string;
+  id?: string;
+  className?: string;
+  ariaLabel?: string;
+  placeholder?: string;
+}
+
+export function createSelectPill(options: SelectPillOptions): HTMLButtonElement {
+  const requested = options.value;
+  let current =
+    requested !== undefined && options.options.some((option) => option.value === requested)
+      ? requested
+      : (options.options[0]?.value ?? '');
+  const dot = h('span', { class: 'select-pill-dot', 'aria-hidden': 'true' });
+  const valueLabel = h('span', { class: 'select-pill-value' });
+  const button = h(
+    'button',
+    {
+      type: 'button',
+      id: options.id,
+      class: `select-pill ${options.className ?? ''}`.trim(),
+      'aria-haspopup': 'menu',
+      disabled: options.options.length === 0,
+      onclick: (event: MouseEvent) => {
+        event.stopPropagation();
+        openMenu();
+      },
+    },
+    dot,
+    valueLabel,
+    icon('chevronDown', 14),
+  );
+
+  function sync(): void {
+    const selected = options.options.find((option) => option.value === current);
+    const text = selected?.label ?? options.placeholder ?? '—';
+    valueLabel.textContent = text;
+    button.classList.toggle('is-placeholder', !selected || selected.value === '');
+    dot.hidden = !selected?.dotColor;
+    if (selected?.dotColor) dot.style.background = selected.dotColor;
+    button.setAttribute('aria-label', options.ariaLabel ? `${options.ariaLabel}: ${text}` : text);
+  }
+
+  function openMenu(): void {
+    showMenu(
+      button,
+      options.options.map((option) => ({
+        label: option.label,
+        dotColor: option.dotColor,
+        selected: option.value === current,
+        onClick: () => {
+          if (option.value === current) return;
+          current = option.value;
+          button.value = current;
+          sync();
+          button.dispatchEvent(new Event('change', { bubbles: true }));
+          button.focus();
+        },
+      })),
+    );
+  }
+
+  button.value = current;
+  sync();
+  return button;
 }
 
 export function showMenu(anchor: HTMLElement, items: MenuItem[]): void {
@@ -474,8 +562,13 @@ export function showMenu(anchor: HTMLElement, items: MenuItem[]): void {
             }
           },
         },
-        item.iconName ? icon(item.iconName, 16) : null,
-        h('span', { text: item.label }),
+        item.dotColor
+          ? h('span', { class: 'menu-dot', style: { background: item.dotColor }, 'aria-hidden': 'true' })
+          : item.iconName
+            ? icon(item.iconName, 16)
+            : null,
+        h('span', { class: 'menu-label', text: item.label }),
+        item.selected ? h('span', { class: 'menu-check' }, icon('check', 15)) : null,
       ),
     );
   }

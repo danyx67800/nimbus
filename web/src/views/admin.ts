@@ -1,7 +1,17 @@
 import { ApiError, api } from '../api.js';
 import { t } from '../i18n.js';
 import { state } from '../store.js';
-import { copyToClipboard, formatBytes, formatDate, h, icon, openModal, promptDialog, toast } from '../ui.js';
+import {
+  copyToClipboard,
+  createSelectPill,
+  formatBytes,
+  formatDate,
+  h,
+  icon,
+  openModal,
+  promptDialog,
+  toast,
+} from '../ui.js';
 import type { View } from './types.js';
 
 interface AdminUser {
@@ -345,12 +355,14 @@ export function renderAdmin(): View {
     });
     const displayName = h('input', { class: 'input', maxlength: '100', placeholder: 'Mario Rossi' });
     const password = h('input', { class: 'input', type: 'password', minlength: '12', autocomplete: 'new-password' });
-    const role = h(
-      'select',
-      { class: 'select' },
-      h('option', { value: 'user', text: t('admin.user') }),
-      h('option', { value: 'admin', text: t('admin.admin') }),
-    );
+    const role = createSelectPill({
+      value: 'user',
+      ariaLabel: t('admin.role'),
+      options: [
+        { value: 'user', label: t('admin.user'), dotColor: 'var(--muted)' },
+        { value: 'admin', label: t('admin.admin'), dotColor: 'var(--accent)' },
+      ],
+    });
     const quota = h('input', { class: 'input', type: 'number', min: '0', value: '10737418240' });
     const modal = openModal({
       title: t('admin.createUser'),
@@ -475,12 +487,14 @@ export function renderAdmin(): View {
   }
 
   function openCreateInvite(): void {
-    const role = h(
-      'select',
-      { class: 'select' },
-      h('option', { value: 'user', text: t('admin.user') }),
-      h('option', { value: 'admin', text: t('admin.admin') }),
-    );
+    const role = createSelectPill({
+      value: 'user',
+      ariaLabel: t('admin.role'),
+      options: [
+        { value: 'user', label: t('admin.user'), dotColor: 'var(--muted)' },
+        { value: 'admin', label: t('admin.admin'), dotColor: 'var(--accent)' },
+      ],
+    });
     const hours = h('input', { class: 'input', type: 'number', min: '1', max: '168', value: '24' });
     const modal = openModal({
       title: t('admin.createInvite'),

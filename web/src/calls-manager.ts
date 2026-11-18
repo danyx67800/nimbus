@@ -2,7 +2,7 @@ import { ApiError, fetchIceServers } from './api.js';
 import { t } from './i18n.js';
 import { realtime } from './realtime.js';
 import { contactName, state } from './store.js';
-import { avatarEl, h, icon, openModal, toast } from './ui.js';
+import { avatarEl, createSelectPill, h, icon, openModal, toast } from './ui.js';
 
 interface Peer {
   pc: RTCPeerConnection;
@@ -485,28 +485,28 @@ async function openDevices(session: CallSession): Promise<void> {
   const cameras = devices.filter((device) => device.kind === 'videoinput');
   const currentAudio = session.localStream.getAudioTracks()[0]?.getSettings().deviceId;
   const currentVideo = session.localStream.getVideoTracks()[0]?.getSettings().deviceId;
-  const mic = h(
-    'select',
-    { class: 'select' },
-    ...microphones.map((device, index) =>
-      h('option', {
-        value: device.deviceId,
-        text: device.label || `Microfono ${index + 1}`,
-        selected: device.deviceId === currentAudio,
-      }),
-    ),
-  );
-  const cam = h(
-    'select',
-    { class: 'select' },
-    ...cameras.map((device, index) =>
-      h('option', {
-        value: device.deviceId,
-        text: device.label || `Videocamera ${index + 1}`,
-        selected: device.deviceId === currentVideo,
-      }),
-    ),
-  );
+  const micOptions = microphones.map((device, index) => ({
+    value: device.deviceId,
+    label: device.label || `Microfono ${index + 1}`,
+  }));
+  const camOptions = cameras.map((device, index) => ({
+    value: device.deviceId,
+    label: device.label || `Videocamera ${index + 1}`,
+  }));
+  const micValue =
+    currentAudio && micOptions.some((option) => option.value === currentAudio) ? currentAudio : micOptions[0]?.value;
+  const camValue =
+    currentVideo && camOptions.some((option) => option.value === currentVideo) ? currentVideo : camOptions[0]?.value;
+  const mic = createSelectPill({
+    value: micValue,
+    ariaLabel: t('calls.microphone'),
+    options: micOptions,
+  });
+  const cam = createSelectPill({
+    value: camValue,
+    ariaLabel: t('calls.camera'),
+    options: camOptions,
+  });
   const modal = openModal({
     title: t('calls.devices'),
     body: h(

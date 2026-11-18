@@ -9,6 +9,7 @@ Nessun servizio cloud, nessuna CDN, nessuna telemetria: il browser carica solo a
 ## Funzionalità
 
 - **Ricerca globale**: barra in alto e spotlight con scorciatoia `⌘K` / `Ctrl K`, ricerca file e navigazione rapida.
+- **Bacheca**: organizzazione a colonne in stile Trello con schede e attività dotate di stato (da fare, in corso, completata), checklist con progresso, note per attività, drag & drop, rinomina e gestione di colonne e schede.
 - **File**: cartelle, drag & drop multiplo, upload a chunk riprendibile, download, anteprime (immagini, PDF, video, audio, testo), rinomina, sposta, copia, preferiti, cestino con ripristino, ricerca, versioni.
 - **Condivisione**: con altri utenti (lettura/scrittura) e link pubblici con password, scadenza, limite download e revoca.
 - **Cifratura a riposo**: AES-256-GCM a chunk da 1 MiB, header versionato, AAD legato a file/versione/indice; chiavi per file avvolte con la master key dell'istanza.
@@ -172,10 +173,10 @@ Pubblicazione:
 
    ```bash
    docker buildx build --platform linux/amd64,linux/arm64 \
-     -t ghcr.io/danyx67800/nimbus:1.1.1 --push .
+     -t ghcr.io/danyx67800/nimbus:1.2.0 --push .
    ```
 
-2. L'immagine è già riferita come `ghcr.io/danyx67800/nimbus:1.1.1` in `umbrel/nimbus-app/docker-compose.yml`.
+2. L'immagine è già riferita come `ghcr.io/danyx67800/nimbus:1.2.0` in `umbrel/nimbus-app/docker-compose.yml`.
 3. Per generare un pacchetto autonomo:
 
    ```bash

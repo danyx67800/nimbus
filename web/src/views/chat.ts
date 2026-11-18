@@ -7,6 +7,7 @@ import { type ChatMessage, type Room, state } from '../store.js';
 import {
   avatarEl,
   confirmDialog,
+  createSelectPill,
   debounce,
   emptyState,
   fileIcon,
@@ -824,12 +825,14 @@ export function renderChat(initialRoomId?: string): View {
 
   function openNewGroup(): void {
     const name = h('input', { class: 'input', maxlength: '80', placeholder: t('chat.groupName'), required: true });
-    const kind = h(
-      'select',
-      { class: 'select' },
-      h('option', { value: 'group', text: t('chat.newGroup') }),
-      h('option', { value: 'channel', text: 'Canale' }),
-    );
+    const kind = createSelectPill({
+      value: 'group',
+      ariaLabel: 'Tipo',
+      options: [
+        { value: 'group', label: t('chat.newGroup'), dotColor: 'var(--accent)' },
+        { value: 'channel', label: 'Canale', dotColor: 'var(--mint)' },
+      ],
+    });
     const list = h('div', { class: 'stack' });
     const selected = new Set<string>();
     for (const contact of state.contacts.filter((entry) => !entry.blocked)) {

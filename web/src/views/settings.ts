@@ -9,6 +9,7 @@ import { applyTheme, rememberLanguage } from '../theme.js';
 import {
   avatarEl,
   copyToClipboard,
+  createSelectPill,
   currentPresenceStatus,
   formatBytes,
   formatDate,
@@ -135,14 +136,16 @@ export function renderSettings(): View {
     maxlength: '100',
     id: 'settings-display-name',
   });
-  const presence = h(
-    'select',
-    { class: 'select' },
-    h('option', { value: 'online', text: t('common.online'), selected: user.presence === 'online' }),
-    h('option', { value: 'away', text: t('common.away'), selected: user.presence === 'away' }),
-    h('option', { value: 'dnd', text: t('common.dnd'), selected: user.presence === 'dnd' }),
-    h('option', { value: 'hidden', text: 'Nascondi presenza', selected: user.presence === 'hidden' }),
-  );
+  const presence = createSelectPill({
+    value: user.presence,
+    ariaLabel: t('settings.presence'),
+    options: [
+      { value: 'online', label: t('common.online'), dotColor: 'var(--success)' },
+      { value: 'away', label: t('common.away'), dotColor: 'var(--warning)' },
+      { value: 'dnd', label: t('common.dnd'), dotColor: 'var(--danger)' },
+      { value: 'hidden', label: 'Nascondi presenza', dotColor: 'var(--muted)' },
+    ],
+  });
   presence.addEventListener('change', async () => {
     try {
       const response = await api<{ user: typeof user }>('/api/me', {
@@ -193,12 +196,14 @@ export function renderSettings(): View {
   );
 
   // Preferences
-  const language = h(
-    'select',
-    { class: 'select' },
-    h('option', { value: 'it', text: 'Italiano', selected: user.locale === 'it' }),
-    h('option', { value: 'en', text: 'English', selected: user.locale === 'en' }),
-  );
+  const language = createSelectPill({
+    value: user.locale,
+    ariaLabel: t('common.language'),
+    options: [
+      { value: 'it', label: 'Italiano' },
+      { value: 'en', label: 'English' },
+    ],
+  });
   language.addEventListener('change', async () => {
     try {
       await api('/api/me', { method: 'PATCH', body: { locale: language.value } });
@@ -211,14 +216,16 @@ export function renderSettings(): View {
       toast(error instanceof ApiError ? error.message : t('common.error'), 'error');
     }
   });
-  const theme = h(
-    'select',
-    { class: 'select' },
-    h('option', { value: 'system', text: t('common.system'), selected: user.theme === 'system' }),
-    h('option', { value: 'light', text: t('common.light'), selected: user.theme === 'light' }),
-    h('option', { value: 'dark', text: t('common.dark'), selected: user.theme === 'dark' }),
-    h('option', { value: 'black', text: t('common.black'), selected: user.theme === 'black' }),
-  );
+  const theme = createSelectPill({
+    value: user.theme,
+    ariaLabel: t('common.theme'),
+    options: [
+      { value: 'system', label: t('common.system'), dotColor: 'var(--accent)' },
+      { value: 'light', label: t('common.light'), dotColor: 'var(--warning)' },
+      { value: 'dark', label: t('common.dark'), dotColor: 'var(--text-soft)' },
+      { value: 'black', label: t('common.black'), dotColor: 'var(--muted)' },
+    ],
+  });
   theme.addEventListener('change', async () => {
     try {
       const value =

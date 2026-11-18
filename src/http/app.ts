@@ -8,6 +8,7 @@ import type { AppContext } from '../context.js';
 import { isHttpError } from '../errors.js';
 import { registerAdminRoutes } from '../routes/admin.js';
 import { registerAuthRoutes } from '../routes/auth.js';
+import { registerBoardRoutes } from '../routes/board.js';
 import { registerCallRoutes } from '../routes/calls.js';
 import { registerChatRoutes } from '../routes/chat.js';
 import { registerFileRoutes } from '../routes/files.js';
@@ -93,6 +94,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
 
   registerAuthRoutes(app, ctx);
   registerAdminRoutes(app, ctx);
+  registerBoardRoutes(app, ctx);
   registerFileRoutes(app, ctx);
   registerChatRoutes(app, ctx);
   registerCallRoutes(app, ctx);

@@ -32,6 +32,7 @@ function navigationEntries(): SpotlightEntry[] {
   const entries: SpotlightEntry[] = [
     { key: 'files', label: t('nav.files'), iconName: 'files', run: () => navigate('/files') },
     { key: 'favorites', label: t('nav.favorites'), iconName: 'star', run: () => navigate('/favorites') },
+    { key: 'board', label: t('nav.board'), iconName: 'kanban', run: () => navigate('/board') },
     { key: 'chat', label: t('nav.chat'), iconName: 'chat', run: () => navigate('/chat') },
     { key: 'calls', label: t('nav.calls'), iconName: 'phone', run: () => navigate('/calls') },
     { key: 'shared', label: t('nav.shared'), iconName: 'share', run: () => navigate('/shared') },
