@@ -15,6 +15,7 @@ import { registerFileRoutes } from '../routes/files.js';
 import { registerPublicRoutes } from '../routes/public.js';
 import { registerPushRoutes } from '../routes/push.js';
 import { registerQuickShareRoutes } from '../routes/quickshare.js';
+import { registerSearchRoutes } from '../routes/search.js';
 import { escapeHtml } from '../util.js';
 import { registerSecurity } from './security.js';
 
@@ -97,6 +98,7 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   registerBoardRoutes(app, ctx);
   registerFileRoutes(app, ctx);
   registerChatRoutes(app, ctx);
+  registerSearchRoutes(app, ctx);
   registerCallRoutes(app, ctx);
   registerQuickShareRoutes(app, ctx);
   registerPublicRoutes(app, ctx);

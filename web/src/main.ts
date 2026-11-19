@@ -5,7 +5,7 @@ import { setLanguage } from './i18n.js';
 import { initQuickShare } from './quick-share.js';
 import { realtime } from './realtime.js';
 import { initRouter, rerender, setRenderer } from './router.js';
-import { type AppConfig, setConfig, setContacts, setUser, state } from './store.js';
+import { type AppConfig, applyPresence, setConfig, setContacts, setUser, state } from './store.js';
 import { applyTheme, rememberLanguage, storedLanguage, storedTheme } from './theme.js';
 import { toast } from './ui.js';
 import { renderInvite, renderLogin, renderSetup } from './views/auth.js';
@@ -90,14 +90,12 @@ async function hydrate(result: Awaited<ReturnType<typeof getMe>>): Promise<void>
       const user = payload.user as
         | { id?: string; displayName?: string; status?: string; presence?: string }
         | undefined;
-      if (!user?.id || !user.status) return;
-      const status =
-        user.status === 'online' || user.status === 'away' || user.status === 'dnd' ? user.status : 'offline';
-      const contact = state.contacts.find((entry) => entry.id === user.id);
-      if (contact) {
-        contact.status = status;
-        if (user.displayName) contact.displayName = user.displayName;
-      }
+      if (!user?.id) return;
+      // Hub events use `status`; profile updates broadcast `presence`.
+      const raw = user.status ?? user.presence;
+      if (!raw) return;
+      const status = raw === 'online' || raw === 'away' || raw === 'dnd' ? raw : 'offline';
+      applyPresence(user.id, status, user.displayName);
       window.dispatchEvent(new CustomEvent(events.contactsUpdated));
     });
   }

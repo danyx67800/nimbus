@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -269,9 +270,30 @@ CREATE TABLE IF NOT EXISTS audit (
 );
 CREATE INDEX IF NOT EXISTS audit_time ON audit(created_at DESC);
 
+CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  chat_room_id TEXT REFERENCES chat_rooms(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS projects_owner ON projects(owner_id, created_at);
+
+CREATE TABLE IF NOT EXISTS project_members (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'member' CHECK (role IN ('owner', 'member')),
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (project_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS project_members_user ON project_members(user_id);
+
 CREATE TABLE IF NOT EXISTS board_columns (
   id TEXT PRIMARY KEY,
   owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   position INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
@@ -286,6 +308,9 @@ CREATE TABLE IF NOT EXISTS board_cards (
   title TEXT NOT NULL,
   description TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'doing', 'done')),
+  due_at INTEGER,
+  due_complete INTEGER NOT NULL DEFAULT 0,
+  cover_file_id TEXT REFERENCES files(id) ON DELETE SET NULL,
   position INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
@@ -305,6 +330,46 @@ CREATE TABLE IF NOT EXISTS board_card_tasks (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS board_card_tasks_card ON board_card_tasks(card_id, position);
+
+CREATE TABLE IF NOT EXISTS board_labels (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL DEFAULT '',
+  color TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS board_labels_project ON board_labels(project_id);
+
+CREATE TABLE IF NOT EXISTS board_card_labels (
+  card_id TEXT NOT NULL REFERENCES board_cards(id) ON DELETE CASCADE,
+  label_id TEXT NOT NULL REFERENCES board_labels(id) ON DELETE CASCADE,
+  PRIMARY KEY (card_id, label_id)
+);
+
+CREATE TABLE IF NOT EXISTS board_card_members (
+  card_id TEXT NOT NULL REFERENCES board_cards(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  PRIMARY KEY (card_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS board_card_comments (
+  id TEXT PRIMARY KEY,
+  card_id TEXT NOT NULL REFERENCES board_cards(id) ON DELETE CASCADE,
+  author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS board_card_comments_card ON board_card_comments(card_id, created_at);
+
+CREATE TABLE IF NOT EXISTS board_card_attachments (
+  id TEXT PRIMARY KEY,
+  card_id TEXT NOT NULL REFERENCES board_cards(id) ON DELETE CASCADE,
+  file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at INTEGER NOT NULL,
+  UNIQUE (card_id, file_id)
+);
 `;
 
 export type Db = DatabaseSync;
@@ -356,6 +421,44 @@ export function openDatabase(config: Config): Db {
       db.exec("ALTER TABLE board_card_tasks ADD COLUMN notes TEXT NOT NULL DEFAULT ''");
     }
     setMeta(db, 'schema_version', '5');
+    version = 5;
+  }
+  if (version < 6) {
+    if (!hasColumn(db, 'board_columns', 'project_id')) {
+      db.exec('ALTER TABLE board_columns ADD COLUMN project_id TEXT');
+    }
+    if (!hasColumn(db, 'board_cards', 'due_at')) {
+      db.exec('ALTER TABLE board_cards ADD COLUMN due_at INTEGER');
+    }
+    if (!hasColumn(db, 'board_cards', 'due_complete')) {
+      db.exec('ALTER TABLE board_cards ADD COLUMN due_complete INTEGER NOT NULL DEFAULT 0');
+    }
+    if (!hasColumn(db, 'board_cards', 'cover_file_id')) {
+      db.exec('ALTER TABLE board_cards ADD COLUMN cover_file_id TEXT');
+    }
+    db.exec('CREATE INDEX IF NOT EXISTS board_columns_project ON board_columns(project_id, position)');
+    const owners = db.prepare('SELECT DISTINCT owner_id FROM board_columns').all() as Array<{ owner_id: string }>;
+    for (const owner of owners) {
+      const existing = db
+        .prepare('SELECT id FROM projects WHERE owner_id = ? ORDER BY created_at ASC LIMIT 1')
+        .get(owner.owner_id) as { id: string } | undefined;
+      let projectId = existing?.id;
+      const now = Date.now();
+      if (!projectId) {
+        projectId = crypto.randomUUID();
+        db.prepare(
+          'INSERT INTO projects (id, owner_id, name, description, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        ).run(projectId, owner.owner_id, 'Bacheca', '', now, now);
+      }
+      db.prepare(
+        "INSERT OR IGNORE INTO project_members (project_id, user_id, role, created_at) VALUES (?, ?, 'owner', ?)",
+      ).run(projectId, owner.owner_id, now);
+      db.prepare('UPDATE board_columns SET project_id = ? WHERE owner_id = ? AND project_id IS NULL').run(
+        projectId,
+        owner.owner_id,
+      );
+    }
+    setMeta(db, 'schema_version', '6');
   }
   return db;
 }

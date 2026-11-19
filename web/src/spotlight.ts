@@ -2,9 +2,37 @@ import { api } from './api.js';
 import { t } from './i18n.js';
 import { navigate } from './router.js';
 import { state } from './store.js';
-import { formatBytes, h, icon, relativeTime } from './ui.js';
+import { avatarEl, formatBytes, h, icon, relativeTime } from './ui.js';
 
-interface SpotlightFile {
+interface SearchPerson {
+  id: string;
+  username: string;
+  displayName: string;
+  status: string;
+  roomId: string | null;
+}
+
+interface SearchRoom {
+  id: string;
+  kind: 'dm' | 'group' | 'channel';
+  title: string;
+  updatedAt: number;
+  lastMessage: string | null;
+  lastMessageAt: number | null;
+}
+
+interface SearchMessage {
+  id: string;
+  roomId: string;
+  roomTitle: string;
+  roomKind: 'dm' | 'group' | 'channel';
+  senderId: string;
+  senderName: string;
+  body: string;
+  createdAt: number;
+}
+
+interface SearchFile {
   id: string;
   parentId: string | null;
   name: string;
@@ -14,12 +42,39 @@ interface SpotlightFile {
   updatedAt: number;
 }
 
+interface SearchBoardItem {
+  kind: 'card' | 'task';
+  id: string;
+  cardId: string;
+  title: string;
+  snippet: string;
+  status: string;
+  columnTitle: string;
+  cardTitle?: string;
+  projectId: string;
+  projectName: string;
+  updatedAt: number;
+}
+
+interface SearchResults {
+  people: SearchPerson[];
+  rooms: SearchRoom[];
+  messages: SearchMessage[];
+  files: SearchFile[];
+  board: SearchBoardItem[];
+}
+
 interface SpotlightEntry {
   key: string;
   label: string;
   hint?: string;
   iconName: string;
+  avatar?: { id: string; displayName: string; status?: string };
   run: () => void;
+}
+
+function emptyResults(): SearchResults {
+  return { people: [], rooms: [], messages: [], files: [], board: [] };
 }
 
 let activeSpotlight: { input: HTMLInputElement; close: () => void } | null = null;
@@ -46,7 +101,7 @@ function navigationEntries(): SpotlightEntry[] {
   return entries;
 }
 
-function fileIconName(file: SpotlightFile): string {
+function fileIconName(file: SearchFile): string {
   if (file.kind === 'folder') return 'folder';
   if (file.mime.startsWith('image/')) return 'image';
   if (file.mime.startsWith('video/')) return 'video';
@@ -55,7 +110,7 @@ function fileIconName(file: SpotlightFile): string {
   return 'file';
 }
 
-function fileEntry(file: SpotlightFile): SpotlightEntry {
+function fileEntry(file: SearchFile): SpotlightEntry {
   const detail = file.kind === 'folder' ? t('files.folder') : formatBytes(file.size);
   return {
     key: `file-${file.id}`,
@@ -75,6 +130,61 @@ function fileEntry(file: SpotlightFile): SpotlightEntry {
   };
 }
 
+function personEntry(person: SearchPerson): SpotlightEntry {
+  return {
+    key: `person-${person.id}`,
+    label: person.displayName,
+    hint: `@${person.username} · ${t(`common.${person.status || 'offline'}`)}`,
+    iconName: 'users',
+    avatar: { id: person.id, displayName: person.displayName, status: person.status },
+    run: () => {
+      if (person.roomId) navigate(`/chat/${encodeURIComponent(person.roomId)}`);
+      else navigate(`/chat?dm=${encodeURIComponent(person.id)}`);
+    },
+  };
+}
+
+function roomKindLabel(kind: SearchRoom['kind']): string {
+  if (kind === 'dm') return t('spotlight.directMessage');
+  if (kind === 'channel') return t('spotlight.channel');
+  return t('spotlight.group');
+}
+
+function roomEntry(room: SearchRoom): SpotlightEntry {
+  const meta = roomKindLabel(room.kind);
+  return {
+    key: `room-${room.id}`,
+    label: room.title,
+    hint: room.lastMessage ? `${meta} · ${room.lastMessage}` : meta,
+    iconName: room.kind === 'dm' ? 'chat' : 'users',
+    run: () => navigate(`/chat/${encodeURIComponent(room.id)}`),
+  };
+}
+
+function messageEntry(message: SearchMessage, searchQuery: string): SpotlightEntry {
+  return {
+    key: `message-${message.id}`,
+    label: `${message.senderName} · ${message.roomTitle}`,
+    hint: message.body,
+    iconName: 'chat',
+    run: () => navigate(`/chat/${encodeURIComponent(message.roomId)}?q=${encodeURIComponent(searchQuery)}`),
+  };
+}
+
+function boardEntry(item: SearchBoardItem): SpotlightEntry {
+  const meta =
+    item.kind === 'task'
+      ? `${t('spotlight.boardTask')} · ${item.projectName}`
+      : `${t('spotlight.boardCard')} · ${item.projectName}`;
+  return {
+    key: `board-${item.kind}-${item.id}`,
+    label: item.title,
+    hint: item.snippet ? `${meta} · ${item.snippet}` : `${meta} · ${item.columnTitle}`,
+    iconName: 'kanban',
+    run: () => navigate(`/board?project=${encodeURIComponent(item.projectId)}&card=${encodeURIComponent(item.cardId)}`),
+  };
+}
+
 export function openSpotlight(): void {
   if (activeSpotlight) {
     activeSpotlight.input.focus();
@@ -88,7 +198,7 @@ export function openSpotlight(): void {
   const titleId = `spotlight-title-${Math.random().toString(36).slice(2)}`;
   const listId = `spotlight-list-${Math.random().toString(36).slice(2)}`;
   let query = '';
-  let fileResults: SpotlightFile[] = [];
+  let searchResults = emptyResults();
   let entries: SpotlightEntry[] = [];
   let itemEls: HTMLButtonElement[] = [];
   let activeIndex = 0;
@@ -182,8 +292,13 @@ export function openSpotlight(): void {
     const actionEntries = query
       ? navigationEntries().filter((entry) => entry.label.toLocaleLowerCase().includes(normalizedQuery))
       : navigationEntries();
-    const fileEntries = query && !failed ? fileResults.map(fileEntry) : [];
-    entries = [...actionEntries, ...fileEntries];
+    const peopleEntries = query && !failed ? searchResults.people.map(personEntry) : [];
+    const roomEntries = query && !failed ? searchResults.rooms.map(roomEntry) : [];
+    const messageEntries =
+      query && !failed ? searchResults.messages.map((message) => messageEntry(message, query)) : [];
+    const fileEntries = query && !failed ? searchResults.files.map(fileEntry) : [];
+    const boardEntries = query && !failed ? searchResults.board.map(boardEntry) : [];
+    entries = [...actionEntries, ...peopleEntries, ...roomEntries, ...messageEntries, ...boardEntries, ...fileEntries];
     if (entries.length === 0) activeIndex = -1;
     else if (activeIndex < 0 || activeIndex >= entries.length) activeIndex = 0;
 
@@ -207,7 +322,11 @@ export function openSpotlight(): void {
             onclick: () => selectEntry(entry),
             onmouseenter: () => setActive(itemIndex),
           },
-          h('span', { class: 'spotlight-item-icon' }, icon(entry.iconName, 17)),
+          h(
+            'span',
+            { class: 'spotlight-item-icon' },
+            entry.avatar ? avatarEl(entry.avatar, { size: 'sm', showStatus: false }) : icon(entry.iconName, 17),
+          ),
           h(
             'span',
             { class: 'spotlight-item-text' },
@@ -222,6 +341,10 @@ export function openSpotlight(): void {
     };
 
     appendGroup(t('spotlight.goTo'), actionEntries);
+    appendGroup(t('spotlight.people'), peopleEntries);
+    appendGroup(t('spotlight.rooms'), roomEntries);
+    appendGroup(t('spotlight.messages'), messageEntries);
+    appendGroup(t('spotlight.board'), boardEntries);
     appendGroup(t('spotlight.files'), fileEntries);
 
     if (query && loading) {
@@ -255,14 +378,21 @@ export function openSpotlight(): void {
     entry.run();
   };
 
-  const searchFiles = async (term: string, token: number): Promise<void> => {
+  const searchGlobal = async (term: string, token: number): Promise<void> => {
     try {
-      const response = await api<{ items: SpotlightFile[] }>(`/api/files?search=${encodeURIComponent(term)}`);
+      const response = await api<SearchResults>(`/api/search?q=${encodeURIComponent(term)}`);
       if (destroyed || token !== searchSeq) return;
-      fileResults = response.items.filter((item) => item.kind === 'file' || item.kind === 'folder').slice(0, 7);
+      searchResults = {
+        people: response.people ?? [],
+        rooms: response.rooms ?? [],
+        messages: response.messages ?? [],
+        files: (response.files ?? []).filter((item) => item.kind === 'file' || item.kind === 'folder'),
+        board: response.board ?? [],
+      };
+      failed = false;
     } catch {
       if (destroyed || token !== searchSeq) return;
-      fileResults = [];
+      searchResults = emptyResults();
       failed = true;
     } finally {
       if (!destroyed && token === searchSeq) {
@@ -304,7 +434,7 @@ export function openSpotlight(): void {
     query = input.value.trim();
     const token = ++searchSeq;
     if (searchTimer !== undefined) window.clearTimeout(searchTimer);
-    fileResults = [];
+    searchResults = emptyResults();
     failed = false;
     activeIndex = 0;
     loading = Boolean(query);
@@ -312,7 +442,7 @@ export function openSpotlight(): void {
     if (!query) return;
     const term = query;
     searchTimer = window.setTimeout(() => {
-      void searchFiles(term, token);
+      void searchGlobal(term, token);
     }, 180);
   });
   closeButton.addEventListener('click', close);

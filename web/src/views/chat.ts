@@ -40,13 +40,13 @@ interface OwnFilesResponse {
 
 const MESSAGE_EMOJI = ['👍', '❤️', '😂', '🎉', '👀'];
 
-export function renderChat(initialRoomId?: string): View {
+export function renderChat(initialRoomId?: string, options: { directUserId?: string; search?: string } = {}): View {
   let rooms: Room[] = state.rooms;
   let active: Room | null = null;
   let messages: ChatMessage[] = [];
   let hasMore = false;
-  let searchQuery = '';
-  let searching = false;
+  let searchQuery = options.search?.trim() ?? '';
+  let searching = searchQuery.length > 0;
   let replyTo: ChatMessage | null = null;
   let attachments: FileChoice[] = [];
   let sending = false;
@@ -59,7 +59,9 @@ export function renderChat(initialRoomId?: string): View {
   let messagesEl: HTMLElement | null = null;
   let composerTextarea: HTMLTextAreaElement | null = null;
 
-  const shell = h('div', { class: `chat-shell ${initialRoomId ? '' : 'show-rooms'}` });
+  const shell = h('div', {
+    class: `chat-shell ${initialRoomId || options.directUserId ? '' : 'show-rooms'}`,
+  });
   const roomListBody = h('div', { class: 'room-list-body' });
   const conversationRoot = h('div', { class: 'conversation' });
   const roomList = h(
@@ -1123,6 +1125,16 @@ export function renderChat(initialRoomId?: string): View {
     renderMessages(true);
   });
   const unsubscribePresence = on(events.contactsUpdated, () => {
+    // The local room list can be a re-sorted copy of state.rooms, so sync the
+    // member snapshots before re-rendering to reflect presence immediately.
+    for (const room of rooms) {
+      for (const member of room.members) {
+        const contact = state.contacts.find((entry) => entry.id === member.id);
+        if (!contact) continue;
+        member.status = contact.status;
+        member.displayName = contact.displayName;
+      }
+    }
     renderRoomList();
     if (active) renderConversation();
   });
@@ -1172,6 +1184,13 @@ export function renderChat(initialRoomId?: string): View {
         }
       });
     }
+  } else if (options.directUserId) {
+    conversationRoot.append(
+      h('div', { class: 'conversation-empty' }, h('p', { class: 'soft', text: t('common.loading') })),
+    );
+    void createRoom({ kind: 'dm', userId: options.directUserId }).then((room) => {
+      if (!room && !destroyed) renderConversation();
+    });
   } else if (rooms[0]) {
     void openRoom(rooms[0], false);
   } else {

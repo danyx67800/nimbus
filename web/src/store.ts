@@ -128,15 +128,16 @@ export function applyPresence(
   if (contact) {
     contact.status = status;
     if (displayName) contact.displayName = displayName;
-  } else if (state.user?.id !== userId) {
-    state.contacts.push({
-      id: userId,
-      username: '',
-      displayName: displayName ?? 'Utente',
-      status,
-      blocked: false,
-      quickShare: true,
-    });
+  }
+  // Chat rooms and the board keep their own member snapshots loaded through
+  // the REST API. Refresh them here so avatars and DM subtitles change live
+  // instead of only after a page reload.
+  for (const room of state.rooms) {
+    for (const member of room.members) {
+      if (member.id !== userId) continue;
+      member.status = status;
+      if (displayName) member.displayName = displayName;
+    }
   }
   if (status === 'offline') state.online.delete(userId);
   else state.online.add(userId);

@@ -46,10 +46,21 @@ function sectionFor(path: string): string {
 function renderView(path: string): View {
   const params = new URLSearchParams(location.search);
   const section = sectionFor(path);
-  if (section === 'board') return renderBoard();
+  if (section === 'board') {
+    return renderBoard({
+      projectId: params.get('project') ?? undefined,
+      cardId: params.get('card') ?? undefined,
+    });
+  }
   if (section === 'chat') {
     const roomId = path.startsWith('/chat/') ? path.slice('/chat/'.length) : undefined;
-    return { ...renderChat(roomId), flush: true };
+    return {
+      ...renderChat(roomId, {
+        directUserId: params.get('dm') ?? undefined,
+        search: params.get('q') ?? undefined,
+      }),
+      flush: true,
+    };
   }
   if (section === 'calls') return renderCalls();
   if (section === 'shared') return renderFiles({ mode: 'shared' });
