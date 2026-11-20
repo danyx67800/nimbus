@@ -72,7 +72,18 @@ interface SharesResponse {
 
 type Mode = 'files' | 'favorites' | 'shared' | 'trash';
 
+type SortKey =
+  | 'name-asc'
+  | 'name-desc'
+  | 'modified-desc'
+  | 'modified-asc'
+  | 'created-desc'
+  | 'created-asc'
+  | 'size-desc'
+  | 'size-asc';
+
 const LAYOUT_KEY = 'nimbus-files-layout';
+const SORT_KEY = 'nimbus-files-sort';
 
 export function renderFiles(options: { mode: Mode; folderId?: string; search?: string; openFileId?: string }): View {
   let mode = options.mode;
@@ -85,6 +96,7 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
   let requestId = 0;
   let destroyed = false;
   let layout: 'list' | 'grid' = readLayout();
+  let sort: SortKey = readSort();
 
   const listRoot = h('div', { class: 'files-dropzone' });
   const breadcrumbRow = h('div', { class: 'breadcrumb' });
@@ -108,6 +120,32 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     { class: 'tabs', role: 'group', 'aria-label': `${t('home.grid')} / ${t('home.list')}` },
     gridTab,
     listTab,
+  );
+  const sortPill = createSelectPill({
+    ariaLabel: t('files.sort'),
+    value: sort,
+    options: sortOptions(),
+  });
+  sortPill.classList.add('sort-pill');
+  sortPill.addEventListener('change', () => {
+    sort = sortPill.value as SortKey;
+    try {
+      localStorage.setItem(SORT_KEY, sort);
+    } catch {
+      // ignore
+    }
+    renderList();
+  });
+  const refreshButton = h(
+    'button',
+    {
+      type: 'button',
+      class: 'icon-btn refresh-btn',
+      'aria-label': t('files.refresh'),
+      title: t('files.refresh'),
+      onclick: () => void load(),
+    },
+    icon('refresh', 16),
   );
   const uploadInput = h('input', {
     type: 'file',
@@ -202,7 +240,15 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     mode === 'files' ? searchBox : null,
   );
   const sectionTitle = h('h2');
-  const sectionHead = h('div', { class: 'sec-head' }, sectionTitle, h('div', { class: 'grow' }), layoutTabs);
+  const sectionHead = h(
+    'div',
+    { class: 'sec-head' },
+    sectionTitle,
+    h('div', { class: 'grow' }),
+    sortPill,
+    refreshButton,
+    layoutTabs,
+  );
   const recentList = h('div', { class: 'recent-list' });
   const homeSide = h(
     'aside',
@@ -348,6 +394,8 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     loading = true;
     errorMessage = '';
     if (items.length === 0) renderList();
+    refreshButton.classList.add('is-loading');
+    refreshButton.disabled = true;
     const params = new URLSearchParams();
     if (search && mode === 'files') params.set('search', search);
     else if (mode !== 'files') params.set('view', mode);
@@ -366,6 +414,11 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
       loading = false;
       errorMessage = error instanceof ApiError ? error.message : t('common.error');
       renderList();
+    } finally {
+      if (current === requestId) {
+        refreshButton.classList.remove('is-loading');
+        refreshButton.disabled = false;
+      }
     }
   }
 
@@ -466,16 +519,17 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
       return;
     }
 
+    const visible = sortItems(items, sort);
     if (layout === 'grid' && mode !== 'trash') {
       const grid = h('div', { class: 'file-grid' });
-      items.forEach((item, index) => {
+      visible.forEach((item, index) => {
         grid.append(fileCard(item, index));
       });
       listRoot.append(grid);
       return;
     }
     const list = h('div', { class: 'file-list', role: 'list' });
-    items.forEach((item, index) => {
+    visible.forEach((item, index) => {
       list.append(fileRow(item, index));
     });
     listRoot.append(list);
@@ -1229,6 +1283,54 @@ function titleFor(mode: Mode): string {
     default:
       return t('files.title');
   }
+}
+
+function sortOptions(): Array<{ value: SortKey; label: string }> {
+  return [
+    { value: 'name-asc', label: t('files.sortNameAsc') },
+    { value: 'name-desc', label: t('files.sortNameDesc') },
+    { value: 'modified-desc', label: t('files.sortModifiedDesc') },
+    { value: 'modified-asc', label: t('files.sortModifiedAsc') },
+    { value: 'created-desc', label: t('files.sortCreatedDesc') },
+    { value: 'created-asc', label: t('files.sortCreatedAsc') },
+    { value: 'size-desc', label: t('files.sortSizeDesc') },
+    { value: 'size-asc', label: t('files.sortSizeAsc') },
+  ];
+}
+
+function readSort(): SortKey {
+  const fallback: SortKey = 'name-asc';
+  try {
+    const stored = localStorage.getItem(SORT_KEY);
+    return sortOptions().some((option) => option.value === stored) ? (stored as SortKey) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function sortItems(list: FileItem[], key: SortKey): FileItem[] {
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+  return [...list].sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'folder' ? -1 : 1;
+    switch (key) {
+      case 'name-desc':
+        return collator.compare(b.name, a.name);
+      case 'modified-desc':
+        return b.updatedAt - a.updatedAt || collator.compare(a.name, b.name);
+      case 'modified-asc':
+        return a.updatedAt - b.updatedAt || collator.compare(a.name, b.name);
+      case 'created-desc':
+        return b.createdAt - a.createdAt || collator.compare(a.name, b.name);
+      case 'created-asc':
+        return a.createdAt - b.createdAt || collator.compare(a.name, b.name);
+      case 'size-desc':
+        return b.size - a.size || collator.compare(a.name, b.name);
+      case 'size-asc':
+        return a.size - b.size || collator.compare(a.name, b.name);
+      default:
+        return collator.compare(a.name, b.name);
+    }
+  });
 }
 
 function readLayout(): 'list' | 'grid' {

@@ -698,6 +698,13 @@ function showOverlay(files: File[]): void {
 }
 
 function pickAndSend(contact: Contact): void {
+  if (pendingFiles.length > 0) {
+    // The files were already chosen before the radar opened (or dropped on
+    // it): send those instead of asking the user to pick them again.
+    const files = [...pendingFiles];
+    void sendFilesTo(contact, files);
+    return;
+  }
   const input = h('input', { type: 'file', multiple: true, hidden: true });
   input.onchange = () => {
     const files = Array.from(input.files ?? []);

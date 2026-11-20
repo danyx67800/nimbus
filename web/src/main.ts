@@ -2,6 +2,7 @@ import { ApiError, api, getMe, listContacts, listRooms, setCsrf } from './api.js
 import { events, on } from './bus.js';
 import { initCalls } from './calls-manager.js';
 import { setLanguage } from './i18n.js';
+import { initNotifications, promptNotificationPermission, resetNotifications } from './notifications.js';
 import { initQuickShare } from './quick-share.js';
 import { realtime } from './realtime.js';
 import { initRouter, rerender, setRenderer } from './router.js';
@@ -68,6 +69,7 @@ async function hydrate(result: Awaited<ReturnType<typeof getMe>>): Promise<void>
     managersReady = true;
     initCalls();
     initQuickShare();
+    initNotifications();
     on(events.userUpdated, () => {
       applyUserPreferences();
       rerender();
@@ -105,6 +107,7 @@ async function hydrate(result: Awaited<ReturnType<typeof getMe>>): Promise<void>
   // created users immediately.
   void refreshContacts();
   renderRoute();
+  promptNotificationPermission();
 }
 
 export async function refreshUser(): Promise<void> {
@@ -146,6 +149,8 @@ async function showLogin(notice?: string): Promise<void> {
   session = null;
   state.contacts = [];
   state.rooms = [];
+  state.activeRoomId = null;
+  resetNotifications();
   mount(renderLogin(state.config, notice));
 }
 

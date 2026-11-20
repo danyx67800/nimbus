@@ -75,6 +75,12 @@ export interface Room {
   lastMessage: { id: string; senderId: string; preview: string; createdAt: number } | null;
 }
 
+export function sortRoomsByRecent(rooms: Room[]): Room[] {
+  return [...rooms].sort(
+    (a, b) => (b.lastMessage?.createdAt ?? b.updatedAt) - (a.lastMessage?.createdAt ?? a.updatedAt),
+  );
+}
+
 interface State {
   user: User | null;
   config: AppConfig | null;
@@ -84,6 +90,7 @@ interface State {
   theme: 'system' | 'light' | 'dark' | 'black';
   unread: number;
   online: Set<string>;
+  activeRoomId: string | null;
 }
 
 export const state: State = {
@@ -95,6 +102,7 @@ export const state: State = {
   theme: 'system',
   unread: 0,
   online: new Set(),
+  activeRoomId: null,
 };
 
 export function setUser(user: User | null): void {

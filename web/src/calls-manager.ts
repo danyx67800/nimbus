@@ -509,6 +509,7 @@ async function openDevices(session: CallSession): Promise<void> {
   });
   const modal = openModal({
     title: t('calls.devices'),
+    className: 'call-devices-modal',
     body: h(
       'div',
       { class: 'stack' },

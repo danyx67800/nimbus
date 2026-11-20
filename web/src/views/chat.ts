@@ -3,7 +3,7 @@ import { emit, events, on } from '../bus.js';
 import { startCall } from '../calls-manager.js';
 import { t } from '../i18n.js';
 import { realtime } from '../realtime.js';
-import { type ChatMessage, type Room, state } from '../store.js';
+import { type ChatMessage, type Room, sortRoomsByRecent, state } from '../store.js';
 import {
   avatarEl,
   confirmDialog,
@@ -41,7 +41,7 @@ interface OwnFilesResponse {
 const MESSAGE_EMOJI = ['👍', '❤️', '😂', '🎉', '👀'];
 
 export function renderChat(initialRoomId?: string, options: { directUserId?: string; search?: string } = {}): View {
-  let rooms: Room[] = state.rooms;
+  let rooms: Room[] = sortRoomsByRecent(state.rooms);
   let active: Room | null = null;
   let messages: ChatMessage[] = [];
   let hasMore = false;
@@ -124,6 +124,8 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
   }
 
   function renderRoomList(): void {
+    rooms = sortRoomsByRecent(rooms);
+    state.rooms = rooms;
     roomListBody.replaceChildren();
     if (rooms.length === 0) {
       roomListBody.append(
@@ -277,6 +279,7 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
   }
 
   function renderConversation(): void {
+    state.activeRoomId = active?.id ?? null;
     conversationRoot.replaceChildren();
     if (!active) {
       conversationRoot.append(
@@ -759,6 +762,13 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
         },
       );
       messages.push(response.message);
+      active.lastMessage = {
+        id: response.message.id,
+        senderId: response.message.sender.id,
+        preview: response.message.body.slice(0, 120) || t('chat.attachment'),
+        createdAt: response.message.createdAt,
+      };
+      active.updatedAt = response.message.createdAt;
       replyTo = null;
       attachments = [];
       if (composerTextarea) {
@@ -1059,35 +1069,17 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
       void reloadRooms();
     } else if (room) {
       room.unread += 1;
-      room.lastMessage = {
-        id: message.id,
-        senderId: message.sender.id,
-        preview: message.body.slice(0, 120),
-        createdAt: message.createdAt,
-      };
-      renderRoomList();
-      emit(events.roomsUpdated);
-      if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-        try {
-          new Notification(message.sender.displayName, {
-            body: message.body.slice(0, 120) || t('chat.attachment'),
-            icon: '/icon.svg',
-            tag: `room-${room.id}`,
-          });
-        } catch {
-          // notifications may be blocked
-        }
-      }
     }
     if (room) {
+      room.updatedAt = message.createdAt;
       room.lastMessage = {
         id: message.id,
         senderId: message.sender.id,
         preview: message.body.slice(0, 120) || t('chat.attachment'),
         createdAt: message.createdAt,
       };
-      rooms = [...rooms].sort((a, b) => b.updatedAt - a.updatedAt);
       renderRoomList();
+      emit(events.roomsUpdated);
     }
   });
   const unsubscribeTyping = realtime.on('typing', (payload) => {
@@ -1226,6 +1218,7 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
     node,
     destroy: () => {
       destroyed = true;
+      state.activeRoomId = null;
       window.clearInterval(typingInterval);
       window.clearTimeout(typingTimer);
       window.clearTimeout(typingStopTimer);

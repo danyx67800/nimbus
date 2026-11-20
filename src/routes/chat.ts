@@ -28,7 +28,11 @@ export function registerChatRoutes(app: FastifyInstance, ctx: AppContext): void 
       .prepare(`SELECT room_id FROM chat_members WHERE user_id = ? ORDER BY joined_at DESC LIMIT 200`)
       .all(user.id) as Array<{ room_id: string }>;
     const rooms = rows.map((row) => roomSummary(ctx, row.room_id, user.id));
-    rooms.sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt));
+    const lastActivity = (room: Record<string, unknown>): number => {
+      const last = room.lastMessage as { createdAt?: number } | null;
+      return last?.createdAt ?? Number(room.updatedAt);
+    };
+    rooms.sort((a, b) => lastActivity(b) - lastActivity(a));
     return { rooms };
   });
 

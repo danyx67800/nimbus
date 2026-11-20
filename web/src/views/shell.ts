@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { events, on } from '../bus.js';
 import { t } from '../i18n.js';
+import { createNotificationCenter } from '../notifications.js';
 import { openQuickSharePicker } from '../quick-share.js';
 import { navigate } from '../router.js';
 import { openSpotlight, spotlightShortcutLabel } from '../spotlight.js';
@@ -140,6 +141,7 @@ export function renderShell(path: string): View {
   );
 
   const avatar = avatarEl({ id: user.id, displayName: user.displayName, status: currentPresenceStatus() });
+  const notificationCenter = createNotificationCenter();
   const openUserMenu = (anchor: HTMLElement): void => {
     showMenu(anchor, [
       { label: t('nav.settings'), iconName: 'settings', onClick: () => navigate('/settings') },
@@ -282,6 +284,7 @@ export function renderShell(path: string): View {
     menuButton,
     topbarSearch,
     h('div', { class: 'spacer' }),
+    notificationCenter.button,
     quickShareButton,
     h(
       'button',
@@ -349,6 +352,7 @@ export function renderShell(path: string): View {
       unsubscribeRooms();
       unsubscribeUser();
       window.removeEventListener('keydown', onKey);
+      notificationCenter.destroy();
       view.destroy?.();
     },
   };
