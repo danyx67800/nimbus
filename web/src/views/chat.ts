@@ -7,6 +7,7 @@ import { type ChatMessage, type Room, sortRoomsByRecent, state } from '../store.
 import {
   avatarEl,
   confirmDialog,
+  copyToClipboard,
   createSelectPill,
   debounce,
   emptyState,
@@ -16,6 +17,7 @@ import {
   formatTime,
   h,
   icon,
+  type MenuItem,
   openModal,
   promptDialog,
   showMenu,
@@ -279,6 +281,7 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
   }
 
   function renderConversation(): void {
+    const keepComposerFocus = composerTextarea !== null && document.activeElement === composerTextarea;
     state.activeRoomId = active?.id ?? null;
     conversationRoot.replaceChildren();
     if (!active) {
@@ -302,6 +305,7 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
     const typing = h('div', { class: 'typing', 'aria-live': 'polite' });
     conversationRoot.append(typing);
     conversationRoot.append(composer());
+    if (keepComposerFocus) composerTextarea?.focus();
     renderMessages();
     updateTyping();
   }
@@ -590,24 +594,7 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
               type: 'button',
               'aria-label': t('chat.deleteMessage'),
               title: t('chat.deleteMessage'),
-              onclick: async () => {
-                if (
-                  !(await confirmDialog({
-                    title: t('chat.deleteMessage'),
-                    message: t('chat.deleteMessage'),
-                    confirmLabel: t('common.delete'),
-                    danger: true,
-                  }))
-                )
-                  return;
-                try {
-                  await api(`/api/messages/${encodeURIComponent(message.id)}`, { method: 'DELETE' });
-                  messages = messages.filter((entry) => entry.id !== message.id);
-                  renderMessages();
-                } catch (error) {
-                  toast(error instanceof ApiError ? error.message : t('common.error'), 'error');
-                }
-              },
+              onclick: () => void removeMessage(message),
             },
             icon('trash', 13),
           )
@@ -638,7 +625,13 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
     );
     return h(
       'div',
-      { class: `message-row ${mine ? 'mine' : ''}` },
+      {
+        class: `message-row ${mine ? 'mine' : ''}`,
+        oncontextmenu: (event: MouseEvent) => {
+          event.preventDefault();
+          messageMenu(message, bubbleWrap);
+        },
+      },
       showAvatar
         ? h(
             'div',
@@ -661,6 +654,57 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
         onClick: () => toggleReaction(message, emoji),
       })),
     );
+  }
+
+  function messageMenu(message: ChatMessage, anchor: HTMLElement): void {
+    const mine = message.sender.id === state.user?.id;
+    const items: MenuItem[] = [
+      {
+        label: t('chat.reply'),
+        iconName: 'arrowLeft',
+        onClick: () => {
+          replyTo = message;
+          renderConversation();
+          composerTextarea?.focus();
+        },
+      },
+      { label: t('chat.react'), iconName: 'spark', onClick: () => reactionMenu(message, anchor) },
+    ];
+    if (message.body) {
+      items.push({
+        label: t('chat.copyText'),
+        iconName: 'copy',
+        onClick: async () => {
+          if (await copyToClipboard(message.body)) toast(t('common.copied'), 'success');
+        },
+      });
+    }
+    if (mine) {
+      items.push({
+        label: t('chat.deleteMessage'),
+        iconName: 'trash',
+        danger: true,
+        onClick: () => void removeMessage(message),
+      });
+    }
+    showMenu(anchor, items);
+  }
+
+  async function removeMessage(message: ChatMessage): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: t('chat.deleteMessage'),
+      message: t('chat.deleteMessage'),
+      confirmLabel: t('common.delete'),
+      danger: true,
+    });
+    if (!confirmed) return;
+    try {
+      await api(`/api/messages/${encodeURIComponent(message.id)}`, { method: 'DELETE' });
+      messages = messages.filter((entry) => entry.id !== message.id);
+      renderMessages();
+    } catch (error) {
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'error');
+    }
   }
 
   async function toggleReaction(message: ChatMessage, emoji: string): Promise<void> {
@@ -776,6 +820,7 @@ export function renderChat(initialRoomId?: string, options: { directUserId?: str
         composerTextarea.style.height = 'auto';
       }
       renderConversation();
+      composerTextarea?.focus();
       active.unread = 0;
       renderRoomList();
       await markRoomRead(active.id, response.message.id);

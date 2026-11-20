@@ -1,5 +1,6 @@
-import { ApiError, api, downloadUrl, fetchTextPreview, uploadFileVersion } from '../api.js';
+import { ApiError, api, downloadUrl, uploadFileVersion } from '../api.js';
 import { on } from '../bus.js';
+import { openFileViewer } from '../file-viewer.js';
 import { t } from '../i18n.js';
 import { openQuickSharePicker } from '../quick-share.js';
 import { hashFile } from '../sha256.js';
@@ -97,6 +98,8 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
   let destroyed = false;
   let layout: 'list' | 'grid' = readLayout();
   let sort: SortKey = readSort();
+  let selecting = false;
+  const selectedItems = new Map<string, FileItem>();
 
   const listRoot = h('div', { class: 'files-dropzone' });
   const breadcrumbRow = h('div', { class: 'breadcrumb' });
@@ -146,6 +149,35 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
       onclick: () => void load(),
     },
     icon('refresh', 16),
+  );
+  const selectButton = h(
+    'button',
+    {
+      type: 'button',
+      class: 'icon-btn select-btn',
+      'aria-label': t('files.select'),
+      'aria-pressed': 'false',
+      title: t('files.select'),
+      onclick: () => setSelecting(!selecting),
+    },
+    icon('checkSquare', 16),
+  );
+  const selectionCount = h('span', { class: 'selection-count' });
+  const downloadSelectedButton = h(
+    'button',
+    { type: 'button', class: 'btn small primary', disabled: true, onclick: () => downloadSelected() },
+    icon('download', 14),
+    t('files.downloadSelected'),
+  );
+  const selectionBar = h(
+    'div',
+    { class: 'selection-bar', role: 'toolbar', 'aria-label': t('files.select'), hidden: true },
+    icon('checkSquare', 16),
+    selectionCount,
+    h('div', { class: 'grow' }),
+    h('button', { type: 'button', class: 'btn small', onclick: () => selectAll() }, t('files.selectAll')),
+    downloadSelectedButton,
+    h('button', { type: 'button', class: 'btn small', onclick: () => setSelecting(false) }, t('common.cancel')),
   );
   const uploadInput = h('input', {
     type: 'file',
@@ -246,6 +278,7 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     sectionTitle,
     h('div', { class: 'grow' }),
     sortPill,
+    selectButton,
     refreshButton,
     layoutTabs,
   );
@@ -268,7 +301,7 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
       ),
     ),
   );
-  const homeMain = h('div', { class: 'home-main' }, sectionHead, listRoot);
+  const homeMain = h('div', { class: 'home-main' }, sectionHead, selectionBar, listRoot);
   const columns = h('div', { class: 'home-cols' }, homeMain, homeSide);
   const node = h('div', { class: 'files-shell' }, hello, quickActions, pageHead, toolbar, columns, fab);
 
@@ -322,6 +355,13 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     layoutTabs.hidden = mode === 'trash';
     homeSide.hidden = !home;
     columns.classList.toggle('single', !home);
+    selectButton.hidden = mode === 'trash';
+    if (mode === 'trash' && selecting) {
+      selecting = false;
+      selectedItems.clear();
+      renderList();
+    }
+    syncSelection();
   }
 
   function renderRecent(): void {
@@ -431,6 +471,62 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     void openPreview(item);
   }
 
+  function setSelecting(value: boolean): void {
+    selecting = value;
+    if (!value) selectedItems.clear();
+    syncSelection();
+    renderList();
+  }
+
+  function toggleSelected(item: FileItem): void {
+    if (selectedItems.has(item.id)) selectedItems.delete(item.id);
+    else selectedItems.set(item.id, item);
+    syncSelection();
+    renderList();
+  }
+
+  function selectAll(): void {
+    for (const item of items) if (item.kind === 'file') selectedItems.set(item.id, item);
+    syncSelection();
+    renderList();
+  }
+
+  function downloadSelected(): void {
+    const files = [...selectedItems.values()];
+    if (files.length === 0) return;
+    files.forEach((item, index) => {
+      window.setTimeout(() => download(item), index * 250);
+    });
+    toast(t('files.downloadStarted', { n: files.length }), 'success');
+  }
+
+  function syncSelection(): void {
+    selectionBar.hidden = !selecting;
+    selectionCount.textContent = t('files.selectedCount', { n: selectedItems.size });
+    downloadSelectedButton.disabled = selectedItems.size === 0;
+    selectButton.setAttribute('aria-pressed', String(selecting));
+    selectButton.classList.toggle('on', selecting);
+    node.classList.toggle('selecting', selecting);
+  }
+
+  function checkEl(item: FileItem): HTMLElement {
+    const on = selectedItems.has(item.id);
+    return h(
+      'span',
+      {
+        class: `file-check${on ? ' on' : ''}`,
+        role: 'checkbox',
+        'aria-checked': String(on),
+        'aria-label': `${t('files.select')} ${item.name}`,
+        onclick: (event: MouseEvent) => {
+          event.stopPropagation();
+          toggleSelected(item);
+        },
+      },
+      on ? icon('check', 13) : null,
+    );
+  }
+
   function menuFor(item: FileItem, anchor: HTMLElement): void {
     const actions = [];
     if (mode === 'trash') {
@@ -444,6 +540,11 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     } else {
       if (item.kind === 'file') {
         actions.push({ label: t('files.preview'), iconName: 'file', onClick: () => void openPreview(item) });
+        actions.push({
+          label: t('viewer.details'),
+          iconName: 'info',
+          onClick: () => openFileViewer(item, { showDetails: true }),
+        });
         actions.push({ label: t('common.download'), iconName: 'download', onClick: () => download(item) });
       }
       if (item.isOwner) {
@@ -585,21 +686,34 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
       );
     } else thumb.append(fileIcon(item.kind, item.mime));
     if (item.kind !== 'folder') thumb.append(h('span', { class: 'tag', text: fileExtension(item.name) }));
+    const selectable = selecting && item.kind === 'file';
     const card = h(
       'div',
       {
-        class: 'file-card',
+        class: [
+          'file-card',
+          selectable ? 'is-selectable' : '',
+          selectable && selectedItems.has(item.id) ? 'is-selected' : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
         style: { '--i': String(index) },
         role: 'button',
         tabindex: '0',
-        onclick: () => openItem(item),
+        onclick: () => (selectable ? toggleSelected(item) : openItem(item)),
         onkeydown: (event: KeyboardEvent) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            openItem(item);
+            if (selectable) toggleSelected(item);
+            else openItem(item);
           }
         },
+        oncontextmenu: (event: MouseEvent) => {
+          event.preventDefault();
+          menuFor(item, event.currentTarget as HTMLElement);
+        },
       },
+      selectable ? checkEl(item) : null,
       thumb,
       h('div', { class: 'file-name', text: item.name }),
       h(
@@ -621,21 +735,34 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
       : item.kind === 'folder'
         ? t('files.folder')
         : formatBytes(item.size);
+    const selectable = selecting && item.kind === 'file';
     const row = h(
       'div',
       {
-        class: 'file-row',
+        class: [
+          'file-row',
+          selectable ? 'is-selectable' : '',
+          selectable && selectedItems.has(item.id) ? 'is-selected' : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
         style: { '--i': String(index) },
         role: 'listitem',
         tabindex: '0',
-        onclick: () => openItem(item),
+        onclick: () => (selectable ? toggleSelected(item) : openItem(item)),
         onkeydown: (event: KeyboardEvent) => {
           if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault();
-            openItem(item);
+            if (selectable) toggleSelected(item);
+            else openItem(item);
           }
         },
+        oncontextmenu: (event: MouseEvent) => {
+          event.preventDefault();
+          menuFor(item, event.currentTarget as HTMLElement);
+        },
       },
+      selectable ? checkEl(item) : null,
       h(
         'div',
         { class: 'name-cell' },
@@ -757,77 +884,7 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
   }
 
   async function openPreview(item: FileItem): Promise<void> {
-    const content = h('div', { class: 'preview-modal-content' }, h('p', { class: 'soft', text: t('common.loading') }));
-    const modal = openModal({
-      title: item.name,
-      body: content,
-      wide: true,
-      actions: [
-        {
-          label: t('common.download'),
-          kind: 'primary',
-          close: false,
-          onClick: () => download(item),
-        },
-        { label: t('common.close') },
-      ],
-    });
-    const url = downloadUrl(item.id);
-    const mime = item.mime;
-    if (mime.startsWith('image/')) {
-      content.replaceChildren(h('img', { src: url, alt: item.name }));
-      return;
-    }
-    if (mime.startsWith('video/')) {
-      content.replaceChildren(h('video', { src: url, controls: true, playsinline: true }));
-      return;
-    }
-    if (mime.startsWith('audio/')) {
-      content.replaceChildren(h('audio', { src: url, controls: true }));
-      return;
-    }
-    if (mime === 'application/pdf') {
-      content.replaceChildren(h('iframe', { src: url, title: item.name, sandbox: '' }));
-      return;
-    }
-    if (
-      mime.startsWith('text/') ||
-      mime.includes('json') ||
-      mime.includes('xml') ||
-      mime === 'application/javascript'
-    ) {
-      try {
-        const preview = await fetchTextPreview(item.id);
-        content.replaceChildren(
-          h(
-            'div',
-            { class: 'stack', style: { width: '100%', maxHeight: '62dvh', overflow: 'auto' } },
-            h('pre', { text: preview.text }),
-            preview.truncated ? h('div', { class: 'hint', text: t('files.textTruncated') }) : null,
-          ),
-        );
-      } catch (error) {
-        content.replaceChildren(
-          h('p', { class: 'soft', text: error instanceof ApiError ? error.message : t('files.previewUnavailable') }),
-        );
-      }
-      return;
-    }
-    content.replaceChildren(
-      h(
-        'div',
-        { class: 'empty', style: { padding: '40px 20px' } },
-        h('div', { class: 'empty-icon' }, fileIcon(item.kind, mime)),
-        h('p', { text: t('files.previewUnavailable') }),
-        h(
-          'button',
-          { type: 'button', class: 'btn', onclick: () => download(item) },
-          icon('download', 16),
-          t('common.download'),
-        ),
-      ),
-    );
-    void modal;
+    openFileViewer(item);
   }
 
   async function openFromSpotlight(id: string): Promise<void> {
@@ -1256,6 +1313,7 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
   }
 
   syncLayoutTabs();
+  syncSelection();
   updateSubtitle();
   renderBreadcrumb();
   renderList();
