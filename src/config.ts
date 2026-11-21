@@ -18,7 +18,7 @@ export interface Branding {
 const FALLBACK_BRANDING: Branding = {
   name: 'Nimbus',
   slug: 'nimbus',
-  version: '1.3.3',
+  version: '1.3.4',
   tagline: 'I tuoi file, le tue chat, le tue chiamate. Sul tuo server.',
   description: 'Spazio personale self-hosted.',
   developer: 'Nimbus Self-hosted',

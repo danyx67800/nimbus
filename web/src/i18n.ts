@@ -545,7 +545,7 @@ const it: Record<string, string> = {
   'settings.storage': 'Spazio',
   'settings.aiTitle': 'IA e MCP',
   'settings.aiText':
-    'Collega ChatGPT, Claude o un altro client MCP alla tua bacheca. L’accesso usa OAuth: scegli quale account autorizzare e revoca quando vuoi.',
+    'Collega ChatGPT, Claude o un altro client MCP alla tua bacheca. Puoi autorizzare l’app con OAuth oppure generare un token personale per Claude Code, Codex e gli strumenti da terminale.',
   'settings.aiEndpoint': 'Endpoint MCP',
   'settings.aiCopy': 'Copia',
   'settings.aiHint':
@@ -555,6 +555,23 @@ const it: Record<string, string> = {
   'settings.aiConnectedOn': 'Collegata il',
   'settings.aiRevoked': 'Accesso revocato',
   'settings.aiRevoke': 'Revoca',
+  'settings.mcpTokens': 'Token per CLI',
+  'settings.mcpTokensHint':
+    'Per Claude Code, Codex e altri strumenti da terminale. Il token vale solo per il tuo account e puoi revocarlo qui.',
+  'settings.mcpTokenCreate': 'Genera token',
+  'settings.mcpTokenName': 'Nome del token',
+  'settings.mcpTokenEmpty': 'Nessun token attivo.',
+  'settings.mcpTokenCreated': 'Token creato',
+  'settings.mcpTokenOnce': 'Copialo ora: per sicurezza il token non verrà mostrato di nuovo.',
+  'settings.mcpTokenLabel': 'Token «{name}»',
+  'settings.mcpSnippetTitle': 'Messaggio pronto per Claude Code / Codex',
+  'settings.mcpSnippetHint':
+    'Contiene endpoint e token già compilati: incollalo nel terminale o nella chat dell’agente.',
+  'settings.mcpSnippetCheck': 'Verifica con "claude mcp list" oppure "/mcp" in Codex.',
+  'settings.mcpCopyMessage': 'Copia messaggio',
+  'settings.mcpTokenRevoked': 'Token revocato',
+  'settings.mcpTokenLastUsed': 'Ultimo uso',
+  'settings.mcpNever': 'Mai usato',
   'settings.httpsTitle': 'Accesso sicuro (HTTPS)',
   'settings.httpsText':
     'Camera, microfono, service worker e condivisione rapida richiedono HTTPS. Umbrel 2.0 può servire l’app in HTTPS; in alternativa usa Tailscale, Cloudflare Tunnel o un reverse proxy.',
@@ -1201,7 +1218,7 @@ const en: Record<string, string> = {
   'settings.storage': 'Storage',
   'settings.aiTitle': 'AI & MCP',
   'settings.aiText':
-    'Connect ChatGPT, Claude or another MCP client to your board. Access goes through OAuth: choose which account to authorize and revoke it whenever you want.',
+    'Connect ChatGPT, Claude or another MCP client to your board. Authorize the app with OAuth or generate a personal token for Claude Code, Codex and command-line tools.',
   'settings.aiEndpoint': 'MCP endpoint',
   'settings.aiCopy': 'Copy',
   'settings.aiHint':
@@ -1211,6 +1228,22 @@ const en: Record<string, string> = {
   'settings.aiConnectedOn': 'Connected on',
   'settings.aiRevoked': 'Access revoked',
   'settings.aiRevoke': 'Revoke',
+  'settings.mcpTokens': 'CLI tokens',
+  'settings.mcpTokensHint':
+    'For Claude Code, Codex and other command-line tools. The token only grants access to your account and can be revoked here.',
+  'settings.mcpTokenCreate': 'Generate token',
+  'settings.mcpTokenName': 'Token name',
+  'settings.mcpTokenEmpty': 'No active tokens.',
+  'settings.mcpTokenCreated': 'Token created',
+  'settings.mcpTokenOnce': 'Copy it now: for security the token will not be shown again.',
+  'settings.mcpTokenLabel': 'Token “{name}”',
+  'settings.mcpSnippetTitle': 'Ready-to-send message for Claude Code / Codex',
+  'settings.mcpSnippetHint': 'Endpoint and token are already filled in: paste it in the terminal or in the agent chat.',
+  'settings.mcpSnippetCheck': 'Check with "claude mcp list" or "/mcp" in Codex.',
+  'settings.mcpCopyMessage': 'Copy message',
+  'settings.mcpTokenRevoked': 'Token revoked',
+  'settings.mcpTokenLastUsed': 'Last used',
+  'settings.mcpNever': 'Never used',
   'settings.httpsTitle': 'Secure access (HTTPS)',
   'settings.httpsText':
     'Camera, microphone, service workers and quick share require HTTPS. Umbrel 2.0 can serve the app over HTTPS; otherwise use Tailscale, Cloudflare Tunnel or a reverse proxy.',

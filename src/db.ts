@@ -405,6 +405,17 @@ CREATE TABLE IF NOT EXISTS mcp_tokens (
   revoked_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS mcp_tokens_user ON mcp_tokens(user_id, client_id);
+
+CREATE TABLE IF NOT EXISTS mcp_personal_tokens (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL,
+  last_used_at INTEGER,
+  revoked_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS mcp_personal_tokens_user ON mcp_personal_tokens(user_id, created_at);
 `;
 
 export type Db = DatabaseSync;

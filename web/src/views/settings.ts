@@ -39,6 +39,13 @@ interface McpClientInfo {
   lastUsedAt: number | null;
 }
 
+interface McpPersonalToken {
+  id: string;
+  name: string;
+  createdAt: number;
+  lastUsedAt: number | null;
+}
+
 interface PasskeyInfo {
   id: string;
   name: string;
@@ -766,6 +773,140 @@ export function renderSettings(): View {
     }
   }
   const mcpEndpoint = `${location.origin}/mcp`;
+  const mcpTokens = h('div', { class: 'stack' }, h('p', { class: 'soft', text: t('common.loading') }));
+  const mcpTokenValue = h('input', { class: 'input', id: 'settings-mcp-token', readonly: true });
+  const mcpSnippet = h('textarea', {
+    class: 'input',
+    readonly: true,
+    rows: '13',
+    spellcheck: 'false',
+    style: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: '12px' },
+  });
+  const mcpTokenPanel = h('div', { class: 'stack', hidden: true });
+
+  const mcpSetupMessage = (token: string): string =>
+    [
+      'Collega il server MCP "nimbus" e usalo per leggere e gestire la bacheca.',
+      '',
+      'Claude Code:',
+      `claude mcp add --transport http --scope user nimbus ${mcpEndpoint} \\`,
+      `  --header "Authorization: Bearer ${token}"`,
+      '',
+      'Codex:',
+      `export NIMBUS_MCP_TOKEN="${token}"`,
+      `codex mcp add nimbus --url ${mcpEndpoint} --bearer-token-env-var NIMBUS_MCP_TOKEN`,
+      '',
+      t('settings.mcpSnippetCheck'),
+    ].join('\n');
+
+  const showMcpToken = (token: string, name: string): void => {
+    mcpTokenValue.value = token;
+    mcpSnippet.value = mcpSetupMessage(token);
+    mcpTokenPanel.replaceChildren(
+      h('div', { class: 'notice warn', text: t('settings.mcpTokenOnce') }),
+      h(
+        'div',
+        { class: 'field' },
+        h('label', { for: 'settings-mcp-token', text: t('settings.mcpTokenLabel', { name }) }),
+        mcpTokenValue,
+      ),
+      h(
+        'div',
+        { class: 'field' },
+        h('label', { text: t('settings.mcpSnippetTitle') }),
+        mcpSnippet,
+        h('span', { class: 'hint', text: t('settings.mcpSnippetHint') }),
+      ),
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'btn',
+          onclick: async () => {
+            if (await copyToClipboard(mcpSnippet.value)) toast(t('common.copied'), 'success');
+          },
+        },
+        icon('copy', 15),
+        t('settings.mcpCopyMessage'),
+      ),
+    );
+    mcpTokenPanel.hidden = false;
+  };
+
+  async function loadMcpTokens(): Promise<void> {
+    try {
+      const response = await api<{ tokens: McpPersonalToken[] }>('/api/mcp/tokens');
+      mcpTokens.replaceChildren();
+      if (response.tokens.length === 0) {
+        mcpTokens.append(h('p', { class: 'hint', text: t('settings.mcpTokenEmpty') }));
+        return;
+      }
+      for (const token of response.tokens) {
+        mcpTokens.append(
+          h(
+            'div',
+            { class: 'version-row' },
+            icon('key', 18),
+            h(
+              'div',
+              { class: 'grow' },
+              h('strong', { text: token.name }),
+              h('div', {
+                class: 'hint',
+                text: `${formatDate(token.createdAt, true)}${
+                  token.lastUsedAt
+                    ? ` · ${t('settings.mcpTokenLastUsed')} ${formatDate(token.lastUsedAt, true)}`
+                    : ` · ${t('settings.mcpNever')}`
+                }`,
+              }),
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                class: 'btn small danger',
+                onclick: async () => {
+                  try {
+                    await api(`/api/mcp/tokens/${encodeURIComponent(token.id)}`, { method: 'DELETE' });
+                    await loadMcpTokens();
+                    toast(t('settings.mcpTokenRevoked'), 'success');
+                  } catch (error) {
+                    toast(error instanceof ApiError ? error.message : t('common.error'), 'error');
+                  }
+                },
+              },
+              t('settings.aiRevoke'),
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      mcpTokens.replaceChildren(
+        h('div', { class: 'notice danger', text: error instanceof ApiError ? error.message : t('common.error') }),
+      );
+    }
+  }
+
+  async function createMcpToken(): Promise<void> {
+    const name = await promptDialog({
+      title: t('settings.mcpTokenCreate'),
+      label: t('settings.mcpTokenName'),
+      value: 'Claude Code',
+    });
+    if (name === null) return;
+    try {
+      const created = await api<{ token: string; name: string }>('/api/mcp/tokens', {
+        method: 'POST',
+        body: { name: name || 'Token CLI' },
+      });
+      showMcpToken(created.token, created.name);
+      await loadMcpTokens();
+      toast(t('settings.mcpTokenCreated'), 'success');
+    } catch (error) {
+      toast(error instanceof ApiError ? error.message : t('common.error'), 'error');
+    }
+  }
+
   const mcpBody = h(
     'div',
     { class: 'stack' },
@@ -793,6 +934,17 @@ export function renderSettings(): View {
       ),
     ),
     h('p', { class: 'hint', text: t('settings.aiHint') }),
+    h('div', { class: 'divider' }),
+    h('h3', { style: { fontSize: '14px' }, text: t('settings.mcpTokens') }),
+    h('p', { class: 'hint', text: t('settings.mcpTokensHint') }),
+    mcpTokenPanel,
+    mcpTokens,
+    h(
+      'button',
+      { type: 'button', class: 'btn', onclick: () => void createMcpToken() },
+      icon('plus', 16),
+      t('settings.mcpTokenCreate'),
+    ),
     h('div', { class: 'divider' }),
     h('h3', { style: { fontSize: '14px' }, text: t('settings.aiConnected') }),
     mcpClients,
@@ -852,6 +1004,7 @@ export function renderSettings(): View {
   void loadPasskeys();
   void loadSessions();
   void loadMcpClients();
+  void loadMcpTokens();
 
   return { node: page };
 }

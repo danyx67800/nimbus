@@ -1,8 +1,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AppContext } from '../context.js';
+import { randomToken, sha256Hex } from '../crypto.js';
 import { forbidden, unauthorized } from '../errors.js';
 import { requestOrigin, requireAuth } from '../http/security.js';
-import { type McpTokenAuth, resolveMcpToken } from './oauth.js';
+import { newId, nowMs, sanitizePlainText } from '../util.js';
+import { type McpTokenAuth, resolveMcpToken, resolvePersonalToken } from './oauth.js';
 import { boardTools, executeBoardTool } from './tools.js';
 
 const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
@@ -47,7 +49,7 @@ function bearerFrom(req: FastifyRequest): string | null {
 function authenticate(ctx: AppContext, req: FastifyRequest): McpTokenAuth | null {
   const token = bearerFrom(req);
   if (!token) return null;
-  return resolveMcpToken(ctx.db, token);
+  return resolveMcpToken(ctx.db, token) ?? resolvePersonalToken(ctx.db, token);
 }
 
 function parseArgs(params: Record<string, unknown> | undefined): Record<string, unknown> {
@@ -68,7 +70,7 @@ export function registerMcpRoutes(app: FastifyInstance, ctx: AppContext): void {
         .send(
           JSON.stringify({
             error: 'unauthorized',
-            message: 'Token MCP mancante o scaduto. Autorizza l’app da Impostazioni → IA e MCP.',
+            message: 'Token MCP mancante o non valido. Genera un token o autorizza l’app da Impostazioni → IA e MCP.',
           }),
         );
     }
@@ -185,10 +187,65 @@ export function registerMcpRoutes(app: FastifyInstance, ctx: AppContext): void {
     return { ok: true };
   });
 
+  app.get('/api/mcp/tokens', async (req) => {
+    const { user } = requireAuth(req);
+    const rows = ctx.db
+      .prepare(
+        `SELECT id, name, created_at, last_used_at FROM mcp_personal_tokens
+         WHERE user_id = ? AND revoked_at IS NULL ORDER BY created_at DESC`,
+      )
+      .all(user.id) as Array<{
+      id: string;
+      name: string;
+      created_at: number;
+      last_used_at: number | null;
+    }>;
+    return {
+      tokens: rows.map((row) => ({
+        id: row.id,
+        name: row.name,
+        createdAt: Number(row.created_at),
+        lastUsedAt: row.last_used_at === null ? null : Number(row.last_used_at),
+      })),
+    };
+  });
+
+  app.post('/api/mcp/tokens', async (req) => {
+    const { user } = requireAuth(req);
+    const body = (req.body ?? {}) as { name?: unknown };
+    const name = sanitizePlainText(typeof body.name === 'string' ? body.name : 'Token CLI', 60) || 'Token CLI';
+    const active = ctx.db
+      .prepare('SELECT COUNT(*) AS n FROM mcp_personal_tokens WHERE user_id = ? AND revoked_at IS NULL')
+      .get(user.id) as { n: number };
+    if (Number(active.n) >= 20) {
+      throw forbidden('Hai già 20 token attivi: revocane uno prima di crearne un altro');
+    }
+    const id = newId();
+    const token = `nmb_${randomToken(32)}`;
+    const createdAt = nowMs();
+    ctx.db
+      .prepare('INSERT INTO mcp_personal_tokens (id, user_id, name, token_hash, created_at) VALUES (?, ?, ?, ?, ?)')
+      .run(id, user.id, name, sha256Hex(token), createdAt);
+    return { token, id, name, createdAt };
+  });
+
+  app.delete('/api/mcp/tokens/:id', async (req) => {
+    const { user } = requireAuth(req);
+    const id = (req.params as { id?: string }).id ?? '';
+    if (!id || id.length > 100) throw unauthorized('Token non valido');
+    ctx.db
+      .prepare('UPDATE mcp_personal_tokens SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL')
+      .run(nowMs(), id, user.id);
+    return { ok: true };
+  });
+
   app.post('/api/mcp/revoke-all', async (req) => {
     const { user } = requireAuth(req);
     const now = Date.now();
     ctx.db.prepare('UPDATE mcp_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL').run(now, user.id);
+    ctx.db
+      .prepare('UPDATE mcp_personal_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL')
+      .run(now, user.id);
     ctx.db.prepare('DELETE FROM mcp_auth_codes WHERE user_id = ?').run(user.id);
     return { ok: true };
   });

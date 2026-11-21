@@ -300,6 +300,47 @@ describe('MCP board server with OAuth', () => {
     assert.equal((denied.body.result as RpcToolResult).isError, true);
   });
 
+  it('issues personal CLI tokens that authenticate MCP requests', async () => {
+    const created = await admin.request<{ token?: string; id?: string; name?: string }>('/api/mcp/tokens', {
+      method: 'POST',
+      body: { name: 'Claude Code' },
+      csrf: true,
+    });
+    assert.equal(created.status, 200, created.text);
+    assert.match(created.body.token ?? '', /^nmb_/);
+    assert.equal(created.body.name, 'Claude Code');
+    const token = created.body.token ?? '';
+
+    const initialized = await rpc(context.base, token, 'initialize', {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'claude-code', version: '1.0.0' },
+    });
+    assert.equal(initialized.status, 200);
+    assert.equal((initialized.body.result as { protocolVersion: string }).protocolVersion, '2025-06-18');
+
+    const tools = await rpc(context.base, token, 'tools/list');
+    assert.ok(
+      (tools.body.result as { tools: Array<{ name: string }> }).tools.some((tool) => tool.name === 'board_get'),
+    );
+
+    const listed = await admin.request<{ tokens: Array<{ id: string; name: string }> }>('/api/mcp/tokens');
+    assert.equal(listed.status, 200);
+    assert.ok(listed.body.tokens.some((entry) => entry.id === created.body.id && entry.name === 'Claude Code'));
+
+    const revoked = await admin.request(`/api/mcp/tokens/${encodeURIComponent(created.body.id ?? '')}`, {
+      method: 'DELETE',
+      csrf: true,
+    });
+    assert.equal(revoked.status, 200);
+    const denied = await fetch(`${context.base}/mcp`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'ping' }),
+    });
+    assert.equal(denied.status, 401);
+  });
+
   it('lists and revokes connected apps from the Nimbus session API', async () => {
     const list = await admin.request<{ clients: Array<{ id: string; name: string }> }>('/api/mcp/clients');
     assert.equal(list.status, 200);

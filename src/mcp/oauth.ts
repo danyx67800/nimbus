@@ -136,6 +136,24 @@ function issueTokens(
   };
 }
 
+export function resolvePersonalToken(db: Db, token: string): McpTokenAuth | null {
+  if (!token.startsWith('nmb_') || token.length < 24 || token.length > 200) return null;
+  const row = db
+    .prepare(
+      `SELECT t.id, t.user_id, u.username, u.display_name, u.disabled
+       FROM mcp_personal_tokens t JOIN users u ON u.id = t.user_id
+       WHERE t.token_hash = ? AND t.revoked_at IS NULL`,
+    )
+    .get(sha256Hex(token)) as Record<string, unknown> | undefined;
+  if (!row || Number(row.disabled) !== 0) return null;
+  db.prepare('UPDATE mcp_personal_tokens SET last_used_at = ? WHERE id = ?').run(nowMs(), String(row.id));
+  return {
+    user: { id: String(row.user_id), username: String(row.username), display_name: String(row.display_name) },
+    clientId: `personal:${String(row.id)}`,
+    scope: DEFAULT_SCOPE,
+  };
+}
+
 export function resolveMcpToken(db: Db, token: string): McpTokenAuth | null {
   if (token.length < 20 || token.length > 200) return null;
   const row = db
