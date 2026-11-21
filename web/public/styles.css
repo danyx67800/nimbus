@@ -621,6 +621,10 @@ svg {
   animation: grow 1s var(--ease-out) both;
 }
 
+.space-card .track i.static {
+  animation: none;
+}
+
 .user-card {
   display: flex;
   align-items: center;

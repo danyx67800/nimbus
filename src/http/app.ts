@@ -6,6 +6,8 @@ import websocket from '@fastify/websocket';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import type { AppContext } from '../context.js';
 import { isHttpError } from '../errors.js';
+import { registerMcpAuthRoutes } from '../mcp/oauth.js';
+import { registerMcpRoutes } from '../mcp/server.js';
 import { registerAdminRoutes } from '../routes/admin.js';
 import { registerAuthRoutes } from '../routes/auth.js';
 import { registerBoardRoutes } from '../routes/board.js';
@@ -89,11 +91,16 @@ export async function buildApp(ctx: AppContext): Promise<FastifyInstance> {
   app.addContentTypeParser('application/octet-stream', (_req, payload, done) => {
     done(null, payload);
   });
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
+    done(null, Object.fromEntries(new URLSearchParams(String(body))));
+  });
 
   registerSecurity(app, { config, db: ctx.db, secrets: ctx.secrets });
   ctx.hub.attach(app);
 
   registerAuthRoutes(app, ctx);
+  registerMcpAuthRoutes(app, ctx);
+  registerMcpRoutes(app, ctx);
   registerAdminRoutes(app, ctx);
   registerBoardRoutes(app, ctx);
   registerFileRoutes(app, ctx);

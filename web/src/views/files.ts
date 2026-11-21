@@ -15,6 +15,7 @@ import {
   fileIcon,
   formatBytes,
   formatDate,
+  formatQuota,
   h,
   icon,
   openModal,
@@ -335,9 +336,9 @@ export function renderFiles(options: { mode: Mode; folderId?: string; search?: s
     const used = state.user?.usedBytes ?? 0;
     const quota = state.user?.quotaBytes ?? 0;
     helloUsed.textContent = formatBytes(used);
-    helloQuota.textContent = formatBytes(quota);
+    helloQuota.textContent = formatQuota(quota);
     if (mode === 'files')
-      subtitle.textContent = t('files.storage', { used: formatBytes(used), quota: formatBytes(quota) });
+      subtitle.textContent = t('files.storage', { used: formatBytes(used), quota: formatQuota(quota) });
     else if (mode === 'favorites') subtitle.textContent = 'I tuoi file e cartelle preferiti.';
     else if (mode === 'shared') subtitle.textContent = 'Elementi che altri utenti hanno condiviso con te.';
     else subtitle.textContent = 'Gli elementi eliminati restano qui fino all’eliminazione definitiva.';

@@ -183,6 +183,10 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(digits)} ${units[index]}`;
 }
 
+export function formatQuota(bytes: number): string {
+  return !Number.isFinite(bytes) || bytes <= 0 ? '∞' : formatBytes(bytes);
+}
+
 export function formatDate(timestamp: number, long = false): string {
   const locale = getLanguage() === 'en' ? 'en-GB' : 'it-IT';
   return new Intl.DateTimeFormat(locale, {

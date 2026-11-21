@@ -232,10 +232,15 @@ describe('files, permissions, versions and public links', () => {
     assert.equal(bobRename.status, 200);
   });
 
-  it('enforces per-user quotas', async () => {
+  it('enforces per-user quotas and treats zero as unlimited', async () => {
     const tiny = await createUser(admin, 'tiny', 'SilverComet99!', 5);
     const rejected = await tiny.upload('large.bin', Buffer.from('0123456789'));
     assert.equal(rejected.status, 413);
+
+    const unlimited = await createUser(admin, 'unlimited', 'GoldenRiver77!', 0);
+    const accepted = await unlimited.upload('free.bin', Buffer.from('spazio senza limiti'));
+    assert.equal(accepted.status, 200);
+    assert.equal(accepted.body.item?.name, 'free.bin');
   });
 
   it('creates password-protected public links with a download limit', async () => {

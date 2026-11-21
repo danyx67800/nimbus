@@ -13,6 +13,7 @@ import {
   currentPresenceStatus,
   formatBytes,
   formatDate,
+  formatQuota,
   h,
   icon,
   openModal,
@@ -29,6 +30,13 @@ interface SessionInfo {
   createdAt: number;
   lastSeenAt: number;
   expiresAt: number;
+}
+
+interface McpClientInfo {
+  id: string;
+  name: string;
+  connectedAt: number | null;
+  lastUsedAt: number | null;
 }
 
 interface PasskeyInfo {
@@ -100,7 +108,8 @@ export function renderSettings(): View {
       h('p', { class: 'sub', text: t('settings.subtitle') }),
     ),
   );
-  const storagePercent = Math.min(100, user.quotaBytes ? (user.usedBytes / user.quotaBytes) * 100 : 0);
+  const unlimitedStorage = user.quotaBytes <= 0;
+  const storagePercent = unlimitedStorage ? 0 : Math.min(100, (user.usedBytes / user.quotaBytes) * 100);
   const hero = h(
     'section',
     { class: 'settings-hero' },
@@ -117,10 +126,14 @@ export function renderSettings(): View {
       h(
         'div',
         { class: 'settings-hero-meter' },
-        h('div', { class: 'progress' }, h('span', { style: { width: `${storagePercent}%` } })),
+        unlimitedStorage
+          ? null
+          : h('div', { class: 'progress' }, h('span', { style: { width: `${storagePercent}%` } })),
         h('span', {
           class: 'hint',
-          text: `${formatBytes(user.usedBytes)} / ${formatBytes(user.quotaBytes)} · ${t('settings.encryptedHint')}`,
+          text: unlimitedStorage
+            ? `${formatBytes(user.usedBytes)} · ${t('settings.unlimitedSpace')} · ${t('settings.encryptedHint')}`
+            : `${formatBytes(user.usedBytes)} / ${formatQuota(user.quotaBytes)} · ${t('settings.encryptedHint')}`,
         }),
       ),
     ),
@@ -702,6 +715,89 @@ export function renderSettings(): View {
     passkeyBody,
   );
 
+  const mcpClients = h('div', { class: 'stack' }, h('p', { class: 'soft', text: t('common.loading') }));
+  async function loadMcpClients(): Promise<void> {
+    try {
+      const response = await api<{ clients: McpClientInfo[] }>('/api/mcp/clients');
+      mcpClients.replaceChildren();
+      if (response.clients.length === 0) {
+        mcpClients.append(h('p', { class: 'hint', text: t('settings.aiEmpty') }));
+        return;
+      }
+      for (const client of response.clients) {
+        mcpClients.append(
+          h(
+            'div',
+            { class: 'version-row' },
+            icon('spark', 18),
+            h(
+              'div',
+              { class: 'grow' },
+              h('strong', { text: client.name }),
+              h('div', {
+                class: 'hint',
+                text: `${t('settings.aiConnectedOn')} ${client.connectedAt ? formatDate(client.connectedAt, true) : '—'}`,
+              }),
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                class: 'btn small danger',
+                onclick: async () => {
+                  try {
+                    await api(`/api/mcp/clients/${encodeURIComponent(client.id)}`, { method: 'DELETE' });
+                    await loadMcpClients();
+                    toast(t('settings.aiRevoked'), 'success');
+                  } catch (error) {
+                    toast(error instanceof ApiError ? error.message : t('common.error'), 'error');
+                  }
+                },
+              },
+              t('settings.aiRevoke'),
+            ),
+          ),
+        );
+      }
+    } catch (error) {
+      mcpClients.replaceChildren(
+        h('div', { class: 'notice danger', text: error instanceof ApiError ? error.message : t('common.error') }),
+      );
+    }
+  }
+  const mcpEndpoint = `${location.origin}/mcp`;
+  const mcpBody = h(
+    'div',
+    { class: 'stack' },
+    h('p', { class: 'soft', text: t('settings.aiText') }),
+    h(
+      'div',
+      { class: 'field' },
+      h('label', { for: 'settings-mcp-endpoint', text: t('settings.aiEndpoint') }),
+      h(
+        'div',
+        { class: 'row' },
+        h('input', { class: 'input', id: 'settings-mcp-endpoint', value: mcpEndpoint, readonly: true }),
+        h(
+          'button',
+          {
+            type: 'button',
+            class: 'btn',
+            onclick: async () => {
+              if (await copyToClipboard(mcpEndpoint)) toast(t('common.copied'), 'success');
+            },
+          },
+          icon('copy', 15),
+          t('settings.aiCopy'),
+        ),
+      ),
+    ),
+    h('p', { class: 'hint', text: t('settings.aiHint') }),
+    h('div', { class: 'divider' }),
+    h('h3', { style: { fontSize: '14px' }, text: t('settings.aiConnected') }),
+    mcpClients,
+  );
+
   const httpsBody = h(
     'div',
     { class: 'stack' },
@@ -746,6 +842,7 @@ export function renderSettings(): View {
       card(t('settings.notifications'), pushBody, '', 'bell'),
       card(t('settings.security'), securityBody, 'span-2', 'shield'),
       card(t('settings.sessions'), sessionsBody, 'span-2', 'key'),
+      card(t('settings.aiTitle'), mcpBody, 'span-2', 'spark'),
       card(t('settings.httpsTitle'), httpsBody, '', 'lock'),
       card(t('settings.about'), aboutBody, '', 'cloud'),
     ),
@@ -754,6 +851,7 @@ export function renderSettings(): View {
   renderTwoFactor();
   void loadPasskeys();
   void loadSessions();
+  void loadMcpClients();
 
   return { node: page };
 }

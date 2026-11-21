@@ -173,10 +173,10 @@ Pubblicazione:
 
    ```bash
    docker buildx build --platform linux/amd64,linux/arm64 \
-     -t ghcr.io/danyx67800/nimbus:1.3.2 --push .
+     -t ghcr.io/danyx67800/nimbus:1.3.3 --push .
    ```
 
-2. L'immagine è già riferita come `ghcr.io/danyx67800/nimbus:1.3.2` in `umbrel/nimbus-app/docker-compose.yml`.
+2. L'immagine è già riferita come `ghcr.io/danyx67800/nimbus:1.3.3` in `umbrel/nimbus-app/docker-compose.yml`.
 3. Per generare un pacchetto autonomo:
 
    ```bash

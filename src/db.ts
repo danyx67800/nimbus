@@ -370,6 +370,41 @@ CREATE TABLE IF NOT EXISTS board_card_attachments (
   created_at INTEGER NOT NULL,
   UNIQUE (card_id, file_id)
 );
+
+CREATE TABLE IF NOT EXISTS mcp_clients (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  redirect_uris TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  last_used_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS mcp_auth_codes (
+  id TEXT PRIMARY KEY,
+  code_hash TEXT NOT NULL UNIQUE,
+  client_id TEXT NOT NULL REFERENCES mcp_clients(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  redirect_uri TEXT NOT NULL,
+  code_challenge TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  used_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS mcp_auth_codes_user ON mcp_auth_codes(user_id);
+
+CREATE TABLE IF NOT EXISTS mcp_tokens (
+  id TEXT PRIMARY KEY,
+  token_hash TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL CHECK (kind IN ('access', 'refresh')),
+  client_id TEXT NOT NULL REFERENCES mcp_clients(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  scope TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  revoked_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS mcp_tokens_user ON mcp_tokens(user_id, client_id);
 `;
 
 export type Db = DatabaseSync;

@@ -6,6 +6,7 @@ import {
   createSelectPill,
   formatBytes,
   formatDate,
+  formatQuota,
   h,
   icon,
   openModal,
@@ -25,6 +26,23 @@ interface AdminUser {
   totpEnabled: boolean;
   presence: string;
   createdAt: number;
+}
+
+const GIB = 1024 ** 3;
+const QUOTA_PRESETS = [0, 1, 5, 10, 25, 50, 100, 250, 500, 1000];
+
+function quotaPicker(current: number): HTMLButtonElement {
+  const values = QUOTA_PRESETS.map((gigabytes) => (gigabytes === 0 ? 0 : gigabytes * GIB));
+  if (current > 0 && !values.includes(current)) values.push(current);
+  return createSelectPill({
+    value: String(current),
+    ariaLabel: t('admin.quota'),
+    options: values.map((bytes) => ({
+      value: String(bytes),
+      label: bytes === 0 ? t('admin.quotaUnlimited') : formatBytes(bytes),
+      dotColor: bytes === 0 ? 'var(--success)' : undefined,
+    })),
+  });
 }
 
 interface Invite {
@@ -214,22 +232,41 @@ export function renderAdmin(): View {
               type: 'button',
               class: 'btn small',
               title: t('admin.quota'),
-              onclick: async () => {
-                const value = await promptDialog({
+              onclick: () => {
+                const picker = quotaPicker(user.quotaBytes);
+                const modal = openModal({
                   title: t('admin.quota'),
-                  label: t('admin.quotaBytes'),
-                  value: String(user.quotaBytes),
+                  body: h(
+                    'div',
+                    { class: 'stack' },
+                    h('p', {
+                      class: 'soft',
+                      text: `${user.displayName} · ${t('admin.spaceUsed')}: ${formatBytes(user.usedBytes)}`,
+                    }),
+                    h('div', { class: 'field' }, h('label', { text: t('admin.quota') }), picker),
+                  ),
+                  actions: [
+                    { label: t('common.cancel') },
+                    {
+                      label: t('common.save'),
+                      kind: 'primary',
+                      close: false,
+                      onClick: async () => {
+                        try {
+                          await api(`/api/admin/users/${encodeURIComponent(user.id)}`, {
+                            method: 'PATCH',
+                            body: { quotaBytes: Number(picker.value) },
+                          });
+                          modal.close();
+                          await loadUsers();
+                          toast(t('common.saved'), 'success');
+                        } catch (error) {
+                          toast(error instanceof ApiError ? error.message : t('common.error'), 'error');
+                        }
+                      },
+                    },
+                  ],
                 });
-                if (!value) return;
-                try {
-                  await api(`/api/admin/users/${encodeURIComponent(user.id)}`, {
-                    method: 'PATCH',
-                    body: { quotaBytes: Number(value) },
-                  });
-                  await loadUsers();
-                } catch (error) {
-                  toast(error instanceof ApiError ? error.message : t('common.error'), 'error');
-                }
               },
             },
             icon('cloud', 14),
@@ -273,7 +310,7 @@ export function renderAdmin(): View {
               text: user.role === 'admin' ? t('admin.admin') : t('admin.user'),
             }),
           ),
-          cell(`${formatBytes(user.usedBytes)} / ${formatBytes(user.quotaBytes)}`),
+          cell(`${formatBytes(user.usedBytes)} / ${formatQuota(user.quotaBytes)}`),
           cell(
             h('span', {
               class: `badge ${user.disabled ? 'danger' : 'success'}`,
@@ -363,7 +400,7 @@ export function renderAdmin(): View {
         { value: 'admin', label: t('admin.admin'), dotColor: 'var(--accent)' },
       ],
     });
-    const quota = h('input', { class: 'input', type: 'number', min: '0', value: '10737418240' });
+    const quota = quotaPicker(10 * GIB);
     const modal = openModal({
       title: t('admin.createUser'),
       body: h(
@@ -379,7 +416,7 @@ export function renderAdmin(): View {
           h('span', { class: 'hint', text: t('auth.passwordHint') }),
         ),
         h('div', { class: 'field' }, h('label', { text: t('admin.role') }), role),
-        h('div', { class: 'field' }, h('label', { text: t('admin.quotaBytes') }), quota),
+        h('div', { class: 'field' }, h('label', { text: t('admin.quota') }), quota),
       ),
       actions: [
         { label: t('common.cancel') },

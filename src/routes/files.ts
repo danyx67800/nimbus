@@ -152,7 +152,7 @@ async function copyTree(
   if (!source.wrapped_key || !source.storage_path) throw notFound('File non trovato');
   const total = (ctx.db.prepare('SELECT used_bytes FROM users WHERE id = ?').get(user.id) as { used_bytes: number })
     .used_bytes;
-  if (total + source.size > user.quota_bytes) throw payloadTooLarge('Quota di spazio esaurita');
+  if (user.quota_bytes > 0 && total + source.size > user.quota_bytes) throw payloadTooLarge('Quota di spazio esaurita');
   const newFileId = newId();
   const key = generateFileKey();
   const wrapped = wrapKey(ctx.secrets.masterKey, key, `file:${newFileId}:1`);
@@ -186,7 +186,7 @@ async function copyTree(
         used_bytes: number;
         quota_bytes: number;
       };
-      if (Number(current.used_bytes) + source.size > Number(current.quota_bytes))
+      if (Number(current.quota_bytes) > 0 && Number(current.used_bytes) + source.size > Number(current.quota_bytes))
         throw payloadTooLarge('Quota di spazio esaurita');
       ctx.db
         .prepare(
@@ -575,7 +575,7 @@ export function registerFileRoutes(app: FastifyInstance, ctx: AppContext): void 
           used_bytes: number;
           quota_bytes: number;
         };
-        if (Number(current.used_bytes) + version.size > Number(current.quota_bytes))
+        if (Number(current.quota_bytes) > 0 && Number(current.used_bytes) + version.size > Number(current.quota_bytes))
           throw payloadTooLarge('Quota di spazio esaurita');
         const exists = db
           .prepare('SELECT id FROM file_versions WHERE file_id = ? AND version = ?')

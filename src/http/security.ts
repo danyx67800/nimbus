@@ -43,8 +43,11 @@ export function isAllowedOrigin(req: FastifyRequest, origin: string, config: Con
   }
 }
 
+const ORIGIN_EXEMPT = new Set(['/mcp', '/oauth/token', '/oauth/register', '/oauth/revoke']);
+
 export function enforceOrigin(req: FastifyRequest, config: Config): void {
   if (SAFE_METHODS.has(req.method)) return;
+  if (ORIGIN_EXEMPT.has((req.url.split('?')[0] ?? '').replace(/\/$/, ''))) return;
   const origin = req.headers.origin;
   if (!origin) return; // non-browser clients; CSRF/session tokens still apply
   if (!isAllowedOrigin(req, origin, config)) {
@@ -126,6 +129,10 @@ export function registerSecurity(app: FastifyInstance, options: { config: Config
       path === '/api/auth/2fa' ||
       path === '/api/auth/webauthn/login/verify' ||
       path === '/api/setup' ||
+      path === '/oauth/authorize/decision' ||
+      path === '/oauth/register' ||
+      path === '/oauth/token' ||
+      path === '/oauth/revoke' ||
       /^\/api\/invites\/[^/]+\/redeem$/.test(path) ||
       /^\/api\/public\/shares\/[^/]+\/unlock$/.test(path);
     if (!SAFE_METHODS.has(req.method) && !csrfExempt) {

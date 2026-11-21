@@ -6,7 +6,7 @@ import { openQuickSharePicker } from '../quick-share.js';
 import { navigate } from '../router.js';
 import { openSpotlight, spotlightShortcutLabel } from '../spotlight.js';
 import { state, storageUsed } from '../store.js';
-import { avatarEl, currentPresenceStatus, formatBytes, h, icon, showMenu, toast } from '../ui.js';
+import { avatarEl, currentPresenceStatus, formatBytes, formatQuota, h, icon, showMenu, toast } from '../ui.js';
 import { renderAdmin } from './admin.js';
 import { renderBoard } from './board.js';
 import { renderCalls } from './calls.js';
@@ -15,6 +15,10 @@ import { renderFiles } from './files.js';
 import { renderHelp } from './help.js';
 import { renderSettings } from './settings.js';
 import type { View } from './types.js';
+
+// The sidebar is recreated on every navigation; the storage bar should animate
+// only on the first render of the session, not on each page change.
+let storageBarAnimated = false;
 
 const NAV = [
   { key: 'files', path: '/files', icon: 'files', label: 'nav.files' },
@@ -117,15 +121,21 @@ export function renderShell(path: string): View {
     appendLink({ key: 'admin', path: '/admin', icon: 'admin', label: 'nav.admin' });
   }
 
-  const spacePercent = h('span', { text: `${Math.round(storage.percent)}%` });
+  const unlimitedStorage = storage.quota <= 0;
+  const spacePercent = h('span', { text: unlimitedStorage ? '∞' : `${Math.round(storage.percent)}%` });
   const spaceUsed = h('b', { text: formatBytes(storage.used) });
-  const spaceQuota = h('small', { text: t('home.ofQuota', { quota: formatBytes(storage.quota) }) });
-  const spaceBar = h('i', { style: { width: `${Math.min(100, storage.percent)}%` } });
+  const spaceQuota = h('small', { text: t('home.ofQuota', { quota: formatQuota(storage.quota) }) });
+  const spaceBar = h('i', {
+    class: storageBarAnimated ? 'static' : '',
+    style: { width: `${Math.min(100, storage.percent)}%` },
+  });
+  storageBarAnimated = true;
   const spaceTrack = h(
     'div',
     {
       class: 'track',
       role: 'progressbar',
+      hidden: unlimitedStorage,
       'aria-valuenow': String(Math.round(storage.percent)),
       'aria-valuemin': '0',
       'aria-valuemax': '100',
@@ -325,10 +335,12 @@ export function renderShell(path: string): View {
   const unsubscribeRooms = on(events.roomsUpdated, updateBadge);
   const unsubscribeUser = on('nimbus:user-refreshed', () => {
     const current = storageUsed();
-    spacePercent.textContent = `${Math.round(current.percent)}%`;
+    const unlimited = current.quota <= 0;
+    spacePercent.textContent = unlimited ? '∞' : `${Math.round(current.percent)}%`;
     spaceUsed.textContent = formatBytes(current.used);
-    spaceQuota.textContent = t('home.ofQuota', { quota: formatBytes(current.quota) });
+    spaceQuota.textContent = t('home.ofQuota', { quota: formatQuota(current.quota) });
     spaceBar.style.width = `${Math.min(100, current.percent)}%`;
+    spaceTrack.hidden = unlimited;
     spaceTrack.setAttribute('aria-valuenow', String(Math.round(current.percent)));
   });
   const onKey = (event: KeyboardEvent): void => {

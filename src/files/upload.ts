@@ -62,7 +62,8 @@ export class UploadService {
       n: number;
     };
     if (Number(active.n) >= MAX_ACTIVE_UPLOADS) throw new HttpError(429, 'too_many_uploads', 'Troppi upload in corso');
-    if (user.used_bytes + size > user.quota_bytes) throw payloadTooLarge('Quota di spazio esaurita');
+    if (user.quota_bytes > 0 && user.used_bytes + size > user.quota_bytes)
+      throw payloadTooLarge('Quota di spazio esaurita');
 
     let parentId: string | null = null;
     let targetVersion = 1;
@@ -241,14 +242,11 @@ export class UploadService {
           throw conflict('Il file è stato modificato nel frattempo. Ricarica la pagina.', 'version_conflict');
         }
         withTransaction(db, () => {
-          const used = db.prepare('SELECT used_bytes FROM users WHERE id = ?').get(userId) as { used_bytes: number };
-          if (
-            Number(used.used_bytes) + upload.size >
-            Number(
-              (db.prepare('SELECT quota_bytes FROM users WHERE id = ?').get(userId) as { quota_bytes: number })
-                .quota_bytes,
-            )
-          ) {
+          const used = db.prepare('SELECT used_bytes, quota_bytes FROM users WHERE id = ?').get(userId) as {
+            used_bytes: number;
+            quota_bytes: number;
+          };
+          if (Number(used.quota_bytes) > 0 && Number(used.used_bytes) + upload.size > Number(used.quota_bytes)) {
             throw payloadTooLarge('Quota di spazio esaurita');
           }
           db.prepare(
@@ -303,7 +301,7 @@ export class UploadService {
             used_bytes: number;
             quota_bytes: number;
           };
-          if (Number(user.used_bytes) + result.size > Number(user.quota_bytes))
+          if (Number(user.quota_bytes) > 0 && Number(user.used_bytes) + result.size > Number(user.quota_bytes))
             throw payloadTooLarge('Quota di spazio esaurita');
           db.prepare(
             `INSERT INTO files (id, owner_id, parent_id, name, kind, size, mime, wrapped_key, storage_path, checksum,

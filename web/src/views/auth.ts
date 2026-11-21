@@ -4,6 +4,12 @@ import { t } from '../i18n.js';
 import type { AppConfig } from '../store.js';
 import { createSelectPill, h, icon } from '../ui.js';
 
+function afterLogin(): string {
+  const next = new URLSearchParams(location.search).get('next');
+  if (!next?.startsWith('/') || next.startsWith('//') || next.startsWith('/\\')) return '/';
+  return next;
+}
+
 function errorLine(): HTMLElement {
   return h('div', { class: 'error-text', role: 'alert', hidden: true });
 }
@@ -102,7 +108,7 @@ async function passkeyLogin(onError: (message: string) => void, button: HTMLButt
       csrf: false,
     });
     setCsrf(session.csrfToken);
-    location.assign('/');
+    location.assign(afterLogin());
   } catch (error) {
     onError(
       error instanceof Error && error.name === 'NotAllowedError'
@@ -136,7 +142,7 @@ export function renderLogin(config: AppConfig, notice?: string): HTMLElement {
         return;
       }
       setCsrf(result.csrfToken);
-      location.assign('/');
+      location.assign(afterLogin());
     } catch (err) {
       setError(error, err instanceof ApiError ? err.message : t('common.error'));
       setBusy(submit, false, t('auth.login'));
@@ -211,7 +217,7 @@ function showTwoFactor(challengeId: string, form: HTMLFormElement, error: HTMLEl
         csrf: false,
       });
       setCsrf(result.csrfToken);
-      location.assign('/');
+      location.assign(afterLogin());
     } catch (err) {
       setError(error, err instanceof ApiError ? err.message : t('common.error'));
       setBusy(submit, false, t('auth.verify'));
