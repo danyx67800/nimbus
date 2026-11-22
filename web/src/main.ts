@@ -7,7 +7,7 @@ import { initQuickShare } from './quick-share.js';
 import { realtime } from './realtime.js';
 import { initRouter, rerender, setRenderer } from './router.js';
 import { type AppConfig, applyPresence, setConfig, setContacts, setUser, state } from './store.js';
-import { applyTheme, rememberLanguage, storedLanguage, storedTheme } from './theme.js';
+import { applyHouse, applyTheme, rememberLanguage, storedHouse, storedLanguage, storedTheme } from './theme.js';
 import { toast } from './ui.js';
 import { renderInvite, renderLogin, renderSetup } from './views/auth.js';
 import { renderPublicShare } from './views/public-share.js';
@@ -55,6 +55,7 @@ function applyUserPreferences(): void {
       ? state.user.theme
       : storedTheme();
   applyTheme(theme);
+  applyHouse(storedHouse());
 }
 
 async function hydrate(result: Awaited<ReturnType<typeof getMe>>): Promise<void> {

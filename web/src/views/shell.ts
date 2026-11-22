@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import { brassStirrups, createPrivacySwitch, marauderTrail, nimbusBrandPlate } from '../artifacts.js';
 import { events, on } from '../bus.js';
 import { t } from '../i18n.js';
 import { createNotificationCenter } from '../notifications.js';
@@ -126,14 +127,14 @@ export function renderShell(path: string): View {
   const spaceUsed = h('b', { text: formatBytes(storage.used) });
   const spaceQuota = h('small', { text: t('home.ofQuota', { quota: formatQuota(storage.quota) }) });
   const spaceBar = h('i', {
-    class: storageBarAnimated ? 'static' : '',
+    class: `willow-fill ${storageBarAnimated ? 'static' : ''}`.trim(),
     style: { width: `${Math.min(100, storage.percent)}%` },
   });
   storageBarAnimated = true;
   const spaceTrack = h(
     'div',
     {
-      class: 'track',
+      class: 'track willow-track',
       role: 'progressbar',
       hidden: unlimitedStorage,
       'aria-valuenow': String(Math.round(storage.percent)),
@@ -202,22 +203,13 @@ export function renderShell(path: string): View {
     h(
       'a',
       { class: 'sidebar-brand', href: '/files', style: { textDecoration: 'none', color: 'inherit' } },
-      h('div', {
-        class: 'brand-mark',
-        'aria-hidden': 'true',
-        text: state.config?.appName.slice(0, 1).toUpperCase() ?? 'N',
-      }),
-      h(
-        'div',
-        {},
-        h('strong', { text: state.config?.appName ?? 'Nimbus' }),
-        h('span', { text: t('home.personalSpace') }),
-      ),
+      nimbusBrandPlate(state.config?.appName ?? 'Nimbus'),
     ),
     nav,
     h(
       'div',
       { class: 'sidebar-footer' },
+      marauderTrail(t(`nav.${section}`)),
       spaceCard,
       h(
         'div',
@@ -288,25 +280,26 @@ export function renderShell(path: string): View {
     : null;
 
   const content = h('div', { class: `view ${view.flush ? 'flush' : ''}` }, view.node);
+  const helpButton = h(
+    'button',
+    {
+      type: 'button',
+      class: 'icon-btn',
+      'aria-label': t('nav.help'),
+      title: t('nav.help'),
+      onclick: () => navigate('/help'),
+    },
+    icon('shield', 18),
+  );
+  const privacy = createPrivacySwitch();
+  const utilities = brassStirrups([notificationCenter.button, quickShareButton, privacy.button, helpButton]);
   const topbar = h(
     'header',
     { class: 'topbar' },
     menuButton,
     topbarSearch,
     h('div', { class: 'spacer' }),
-    notificationCenter.button,
-    quickShareButton,
-    h(
-      'button',
-      {
-        type: 'button',
-        class: 'icon-btn',
-        'aria-label': t('nav.help'),
-        title: t('nav.help'),
-        onclick: () => navigate('/help'),
-      },
-      icon('shield', 18),
-    ),
+    utilities,
     topbarAvatar,
   );
   const main = h('div', { class: 'shell-main' }, topbar, secureBanner, content);
@@ -364,6 +357,7 @@ export function renderShell(path: string): View {
       unsubscribeRooms();
       unsubscribeUser();
       window.removeEventListener('keydown', onKey);
+      privacy.destroy();
       notificationCenter.destroy();
       view.destroy?.();
     },

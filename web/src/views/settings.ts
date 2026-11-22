@@ -5,7 +5,15 @@ import { isRingtoneEnabled, setRingtoneEnabled } from '../calls-manager.js';
 import { setLanguage, t } from '../i18n.js';
 import { navigate } from '../router.js';
 import { state } from '../store.js';
-import { applyTheme, rememberLanguage } from '../theme.js';
+import {
+  applyAtmosphere,
+  applyHouse,
+  applyTheme,
+  type House,
+  rememberLanguage,
+  storedAtmosphere,
+  storedHouse,
+} from '../theme.js';
 import {
   avatarEl,
   copyToClipboard,
@@ -269,6 +277,103 @@ export function renderSettings(): View {
   const notificationsSound = toggle(isRingtoneEnabled(), (next) => {
     setRingtoneEnabled(next);
   });
+
+  // Magical artifact calibration: atmosphere and house material preferences.
+  const atmosphere = createSelectPill({
+    value: storedAtmosphere(),
+    ariaLabel: t('settings.atmosphere'),
+    options: [
+      { value: 'auto', label: t('settings.atmosphereAuto'), dotColor: 'var(--brass)' },
+      { value: 'day', label: t('settings.atmosphereDay'), dotColor: 'var(--warning)' },
+      { value: 'dusk', label: t('settings.atmosphereDusk'), dotColor: 'var(--text-soft)' },
+      { value: 'night', label: t('settings.atmosphereNight'), dotColor: 'var(--muted)' },
+    ],
+  });
+  atmosphere.addEventListener('change', () => {
+    const value =
+      atmosphere.value === 'day' || atmosphere.value === 'dusk' || atmosphere.value === 'night'
+        ? atmosphere.value
+        : 'auto';
+    applyAtmosphere(value);
+    toast(t('settings.artifactSaved'), 'success');
+  });
+
+  const houseDefs: Array<{ key: Exclude<House, 'none'>; color: string; metal: string; sigil: string }> = [
+    { key: 'gryffindor', color: '#740001', metal: '#D3A625', sigil: 'G' },
+    { key: 'slytherin', color: '#1A472A', metal: '#AAAAAA', sigil: 'S' },
+    { key: 'ravenclaw', color: '#0E1A40', metal: '#946B2D', sigil: 'R' },
+    { key: 'hufflepuff', color: '#ECB939', metal: '#231F20', sigil: 'T' },
+  ];
+  let activeHouse = storedHouse();
+  const houseButtons: HTMLButtonElement[] = [];
+  const syncHouseButtons = (): void => {
+    for (const button of houseButtons) {
+      button.setAttribute('aria-pressed', String(button.dataset.house === activeHouse));
+    }
+  };
+  const houseGrid = h('div', { class: 'house-grid', role: 'group', 'aria-label': t('settings.house') });
+  for (const house of houseDefs) {
+    const button = h(
+      'button',
+      {
+        type: 'button',
+        class: `house-tile house-${house.key}`,
+        'aria-pressed': String(activeHouse === house.key),
+        dataset: { house: house.key },
+        style: { '--house-tile': house.color, '--house-metal': house.metal },
+        onclick: () => {
+          activeHouse = house.key;
+          applyHouse(house.key);
+          syncHouseButtons();
+          toast(t('settings.artifactSaved'), 'success');
+        },
+      },
+      h('span', { class: 'house-sigil', 'aria-hidden': 'true', text: house.sigil }),
+      h('strong', { text: t(`settings.house.${house.key}`) }),
+      h('small', { text: t(`settings.house.${house.key}.element`) }),
+    );
+    houseButtons.push(button);
+    houseGrid.append(button);
+  }
+  const resetHouse = h(
+    'button',
+    {
+      type: 'button',
+      class: 'btn small ghost',
+      onclick: () => {
+        activeHouse = 'none';
+        applyHouse('none');
+        syncHouseButtons();
+        toast(t('settings.artifactSaved'), 'success');
+      },
+    },
+    t('settings.house.none'),
+  );
+  const artifactBody = h(
+    'div',
+    { class: 'stack artifact-preferences' },
+    h('p', { class: 'soft', text: t('settings.artifactText') }),
+    h(
+      'div',
+      { class: 'artifact-plate' },
+      h('span', { class: 'artifact-plate-mark', 'aria-hidden': 'true' }),
+      h(
+        'div',
+        { class: 'grow' },
+        h('strong', { text: t('settings.artifactPlateTitle') }),
+        h('span', { class: 'hint', text: t('settings.artifactPlateText') }),
+      ),
+    ),
+    settingRow(t('settings.atmosphere'), t('settings.atmosphereHint'), atmosphere),
+    h(
+      'div',
+      { class: 'field' },
+      h('label', { text: t('settings.house') }),
+      houseGrid,
+      h('div', { class: 'row' }, h('span', { class: 'hint grow', text: t('settings.houseHint') }), resetHouse),
+    ),
+  );
+
   const preferencesBody = h(
     'div',
     {},
@@ -991,6 +1096,7 @@ export function renderSettings(): View {
       { class: 'settings-grid' },
       card(t('settings.profile'), profileBody, '', 'users'),
       card('Preferenze', preferencesBody, '', 'settings'),
+      card(t('settings.artifactTitle'), artifactBody, 'span-2', 'spark'),
       card(t('settings.notifications'), pushBody, '', 'bell'),
       card(t('settings.security'), securityBody, 'span-2', 'shield'),
       card(t('settings.sessions'), sessionsBody, 'span-2', 'key'),
