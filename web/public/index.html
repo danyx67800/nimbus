@@ -14,16 +14,27 @@
     <script nonce="__CSP_NONCE__">
       try {
         var theme = localStorage.getItem('nimbus-theme');
-        var color = '#0a0714';
+        var atmosphere = localStorage.getItem('nimbus-atmosphere') || 'auto';
+        var house = localStorage.getItem('nimbus-house');
+        var resolved = atmosphere;
+        if (atmosphere === 'auto') {
+          resolved =
+            theme === 'light'
+              ? 'day'
+              : theme === 'black'
+                ? 'night'
+                : theme === 'system' && !window.matchMedia('(prefers-color-scheme: dark)').matches
+                  ? 'day'
+                  : 'dusk';
+        }
+        document.documentElement.dataset.atmosphere = resolved;
+        if (house && house !== 'none') document.documentElement.dataset.house = house;
+        var color = resolved === 'day' ? '#f4ebd9' : resolved === 'night' ? '#0f1412' : '#2b2620';
         if (theme === 'light') {
           document.documentElement.dataset.theme = 'light';
-          color = '#fbf8ff';
         } else if (theme === 'dark' || theme === 'black') {
           document.documentElement.dataset.theme = theme;
-          color = theme === 'black' ? '#000000' : '#0a0714';
-        } else if (theme === 'system') {
-          if (!window.matchMedia('(prefers-color-scheme: dark)').matches) color = '#fbf8ff';
-        } else {
+        } else if (theme !== 'system') {
           document.documentElement.dataset.theme = 'dark';
         }
         var meta = document.querySelector('meta[name="theme-color"]');
@@ -33,6 +44,7 @@
       }
     </script>
     <link rel="stylesheet" href="/assets/styles.css" nonce="__CSP_NONCE__" />
+    <link rel="stylesheet" href="/assets/artifacts.css" nonce="__CSP_NONCE__" />
     <script type="module" src="/assets/app.js" nonce="__CSP_NONCE__"></script>
   </head>
   <body>

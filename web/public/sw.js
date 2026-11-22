@@ -1,5 +1,13 @@
-const CACHE = 'nimbus-shell-v2';
-const SHELL = ['/', '/assets/app.js', '/assets/styles.css', '/offline.html', '/icon.svg', '/manifest.webmanifest'];
+const CACHE = 'nimbus-shell-v3';
+const SHELL = [
+  '/',
+  '/assets/app.js',
+  '/assets/styles.css',
+  '/assets/artifacts.css',
+  '/offline.html',
+  '/icon.svg',
+  '/manifest.webmanifest',
+];
 
 function offlineResponse() {
   return new Response('<!doctype html><html lang="it"><meta charset="utf-8"><title>Nimbus offline</title><body><h1>Nimbus non raggiungibile</h1><p>Controlla la connessione e riprova.</p></body></html>', {

@@ -27,7 +27,8 @@ for (const entry of fs.readdirSync(path.join(root, 'web', 'public'))) {
   fs.cpSync(source, destination, { recursive: true });
 }
 
-// index.html and the service worker request the stylesheet from /assets/.
+// index.html and the service worker request the stylesheets from /assets/.
 fs.copyFileSync(path.join(root, 'web', 'public', 'styles.css'), path.join(assetsDir, 'styles.css'));
+fs.copyFileSync(path.join(root, 'web', 'public', 'artifacts.css'), path.join(assetsDir, 'artifacts.css'));
 
 console.log(`web build complete → ${outDir}`);
